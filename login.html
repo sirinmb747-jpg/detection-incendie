@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connexion - Surveillance Incendie</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            font-family: Arial;
+            text-align: center;
+            padding-top: 100px;
+        }
+        .box {
+            background: #0f0f1a;
+            width: 350px;
+            margin: auto;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        h2 {
+            color: #ff6b35;
+            margin-bottom: 20px;
+        }
+        input {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #1e1e2e;
+            color: white;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+        button {
+            background: #ff6b35;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #ff5520;
+        }
+        .error {
+            color: #ff4444;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .info {
+            color: #888;
+            margin-top: 20px;
+            font-size: 12px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        .info a {
+            color: #ff6b35;
+            text-decoration: none;
+        }
+        .info a:hover {
+            text-decoration: underline;
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="box">
+        <h2>🔐 Connexion</h2>
+        <input type="email" id="email" placeholder="Email"><br>
+        <input type="password" id="password" placeholder="Mot de passe"><br>
+        <button onclick="login()">Se connecter</button>
+        <div class="info">
+            🔒 Pas de compte ? Contactez l'administrateur :<br>
+            📧 <a href="mailto:syrynmb@gmail.com">syrynmb@gmail.com</a> | 📞 95 365 915
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg_068Fe4dSjZKDvZ9UFA83v45--g9XrI",
+            authDomain: "detection-fda23.firebaseapp.com",
+            databaseURL: "https://detection-fda23-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "detection-fda23",
+            storageBucket: "detection-fda23.firebasestorage.app",
+            messagingSenderId: "987985546215",
+            appId: "1:987985546215:web:31146fae602d6166294b42"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const msg = document.getElementById('message');
+            
+            if (!email || !password) {
+                msg.innerHTML = '<span class="error">❌ Veuillez remplir tous les champs</span>';
+                return;
+            }
+            
+            firebase.auth().signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    sessionStorage.setItem('connecte', 'oui');
+                    sessionStorage.setItem('userEmail', email);
+                    window.location.href = 'dashboard.html';
+                })
+                .catch((error) => {
+                    if (error.code === 'auth/user-not-found') {
+                        msg.innerHTML = '<span class="error">❌ Aucun compte trouvé avec cet email</span>';
+                    } else if (error.code === 'auth/wrong-password') {
+                        msg.innerHTML = '<span class="error">❌ Mot de passe incorrect</span>';
+                    } else {
+                        msg.innerHTML = '<span class="error">❌ Email ou mot de passe incorrect</span>';
+                    }
+                });
+        }
+        
+        // Appuyer sur Entrée pour se connecter
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+    </script>
+</body>
+</html>
