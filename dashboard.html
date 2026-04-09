@@ -67,6 +67,25 @@
             background: #27ae60;
             z-index: 999;
         }
+        .simuler-photo-btn {
+            position: fixed;
+            top: 110px;
+            right: 10px;
+            background: #e74c3c;
+            z-index: 999;
+        }
+        .image-container {
+            margin-top: 20px;
+            background: #0f0f1a;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
     </style>
     <!-- Leaflet pour la carte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -115,6 +134,62 @@
     }
     
     // ============================================================
+    // SIMULATION PHOTO INCENDIE
+    // ============================================================
+    // Images de simulation (vous pouvez changer les URLs)
+    const imagesSimulation = [
+        "https://images.unsplash.com/photo-1584646098378-0874589d76b1?w=500&h=300&fit=crop",
+        "https://images.unsplash.com/photo-1567177662159-3e0b6b8b7a6c?w=500&h=300&fit=crop",
+        "https://images.unsplash.com/photo-1584646098378-0874589d76b1?w=500&h=300&fit=crop"
+    ];
+    
+    function simulerPhotoIncendie() {
+        const randomImage = imagesSimulation[Math.floor(Math.random() * imagesSimulation.length)];
+        
+        // Sauvegarder dans Firebase
+        database.ref('derniereImage').set({
+            url: randomImage,
+            timestamp: new Date().toISOString(),
+            simulatee: true
+        });
+        
+        // Afficher l'image
+        document.getElementById('imageIncendie').src = randomImage;
+        document.getElementById('imageIncendie').style.display = 'block';
+        document.getElementById('pasImage').style.display = 'none';
+        
+        alert("📸 Photo simulée ! L'image a été enregistrée dans Firebase.");
+        
+        // Envoyer email avec l'image
+        envoyerEmailAvecImage(randomImage);
+    }
+    
+    async function envoyerEmailAvecImage(imageUrl) {
+        const snapshot = await database.ref('/').once('value');
+        const data = snapshot.val();
+        
+        const templateParams = {
+            date: new Date().toLocaleString(),
+            flamme: data.flamme == 1 ? "🔥 DÉTECTÉE" : "Simulation",
+            fumee: data.fumee || "Simulation",
+            temperature: data.temperature || "Simulation",
+            humidite: data.humidite || "Simulation",
+            localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
+            imageUrl: imageUrl,
+            email: DESTINATION_EMAIL
+        };
+        
+        try {
+            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            alert("✅ Email avec photo envoyé !");
+            console.log('Email avec photo envoyé:', response);
+        } catch (error) {
+            alert('❌ Erreur envoi email: ' + error.text);
+            console.error('Erreur:', error);
+        }
+    }
+    
+    // ============================================================
     // FONCTION : ENVOI EMAIL D'ALERTE
     // ============================================================
     let dernierEnvoiEmail = 0;
@@ -134,6 +209,7 @@
             temperature: temp,
             humidite: humidite,
             localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
+            imageUrl: "",
             email: DESTINATION_EMAIL
         };
         
@@ -159,6 +235,7 @@
             temperature: "TEST",
             humidite: "TEST",
             localisation: "Test du système",
+            imageUrl: "",
             email: DESTINATION_EMAIL
         };
         
@@ -190,6 +267,10 @@
     📧 TEST EMAIL
 </button>
 
+<button onclick="simulerPhotoIncendie()" class="simuler-photo-btn">
+    📸 SIMULER PHOTO INCENDIE
+</button>
+
 <h1>🔥 FOREST FIRE DETECTION</h1>
 <h3>Surveillance en temps réel</h3>
 
@@ -219,6 +300,15 @@
 <!-- Alerte et Pompe -->
 <div id="alerte" class="normal" style="margin-top:30px;padding:15px;">🟢 NORMAL</div>
 <div id="pompe" style="margin-top:20px;font-size:20px;">💧 Pompe: OFF</div>
+
+<!-- Image capturée (SIMULATION) -->
+<div class="image-container">
+    <h3>📸 Dernière image capturée</h3>
+    <div id="imageContainer">
+        <img id="imageIncendie" src="" style="max-width: 100%; max-height: 300px; border-radius: 10px; display: none;">
+        <p id="pasImage">🖼️ Aucune image (sera capturée automatiquement en cas d'incendie)</p>
+    </div>
+</div>
 
 <!-- Graphique d'évolution (4 courbes) -->
 <div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
@@ -269,6 +359,19 @@
     let historiqueLabels = [];
     
     // ============================================================
+    // ÉCOUTER LA DERNIÈRE IMAGE
+    // ============================================================
+    database.ref('derniereImage').on('value', (snapshot) => {
+        const imageData = snapshot.val();
+        if (imageData && imageData.url) {
+            document.getElementById('imageIncendie').src = imageData.url;
+            document.getElementById('imageIncendie').style.display = 'block';
+            document.getElementById('pasImage').style.display = 'none';
+            console.log("📸 Image chargée:", imageData.url);
+        }
+    });
+    
+    // ============================================================
     // FONCTION : ALERTE SONORE
     // ============================================================
     function jouerSonAlerte() {
@@ -295,51 +398,50 @@
     // FONCTION : SAUVEGARDER ALERTE DANS HISTORIQUE
     // ============================================================
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-    const historiqueRef = database.ref('historique');
-    const newAlerteRef = historiqueRef.push();
-    
-    newAlerteRef.set({
-        date: new Date().toISOString(),
-        niveau: niveau,
-        zone: "Forêt de Tunisie (36.8065, 10.1815)",  // ← AJOUTEZ CETTE LIGNE
-        localisation: "Forêt de Tunisie",
-        temperature: temperature,
-        humidite: humidite,
-        fumee: fumee,
-        flamme: flamme
-    });
-}
+        const historiqueRef = database.ref('historique');
+        const newAlerteRef = historiqueRef.push();
+        
+        newAlerteRef.set({
+            date: new Date().toISOString(),
+            niveau: niveau,
+            zone: "Forêt de Tunisie (36.8065, 10.1815)",
+            localisation: "Forêt de Tunisie",
+            temperature: temperature,
+            humidite: humidite,
+            fumee: fumee,
+            flamme: flamme
+        });
+    }
     
     // ============================================================
     // FONCTION : AFFICHER HISTORIQUE DES ALERTES
     // ============================================================
     function afficherHistorique() {
-    database.ref('historique').orderByChild('date').limitToLast(20).on('value', (snapshot) => {
-        const historique = snapshot.val();
-        let html = '<table style="width:100%; border-collapse: collapse;">';
-        html += '<thead><tr style="background:#ff6b35;"><th>📅 Date et heure</th><th>📍 Zone / Localisation</th><th>🔴 Niveau</th></tr></thead><tbody>';
-        
-        if (historique) {
-            // Inverser l'ordre pour avoir le plus récent en premier
-            const alerts = Object.values(historique).reverse();
-            alerts.forEach(alert => {
-                const date = new Date(alert.date).toLocaleString();
-                // Récupérer la zone (soit du template, soit valeur par défaut)
-                const zone = alert.zone || alert.localisation || "Forêt de Tunisie";
-                const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
-                html += `<tr>
-                            <td>${date}</td>
-                            <td>📍 ${zone}</td>
-                            <td>${niveau}</td>
-                         </tr>`;
-            });
-        } else {
-            html += '<tr><td colspan="3">📭 Aucune alerte pour le moment</td></tr>';
-        }
-        html += '</tbody></table>';
-        document.getElementById('historiqueListe').innerHTML = html;
-    });
-}
+        database.ref('historique').orderByChild('date').limitToLast(20).on('value', (snapshot) => {
+            const historique = snapshot.val();
+            let html = '<table style="width:100%; border-collapse: collapse;">';
+            html += '<thead><tr style="background:#ff6b35;"><th>📅 Date et heure</th><th>📍 Zone / Localisation</th><th>🔴 Niveau</th></tr></thead><tbody>';
+            
+            if (historique) {
+                const alerts = Object.values(historique).reverse();
+                alerts.forEach(alert => {
+                    const date = new Date(alert.date).toLocaleString();
+                    const zone = alert.zone || alert.localisation || "Forêt de Tunisie";
+                    const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
+                    html += `<tr>
+                                 <td>${date}</td>
+                                 <td>📍 ${zone}</td>
+                                 <td>${niveau}</td>
+                             </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="3">📭 Aucune alerte pour le moment</td></tr>';
+            }
+            html += '</tbody></table>';
+            document.getElementById('historiqueListe').innerHTML = html;
+        });
+    }
+    
     // ============================================================
     // FONCTION : AFFICHER LA CARTE
     // ============================================================
@@ -525,7 +627,6 @@
                     jouerSonAlerte();
                     alarmeJouee = true;
                     
-                    // 🔥 ENVOI EMAIL AUTOMATIQUE (remplace WhatsApp)
                     console.log("📧 ENVOI ALERTE EMAIL...");
                     envoyerEmailAlerte(temp, smoke, flame, hum);
                 }
