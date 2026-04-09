@@ -2,605 +2,268 @@
 <html>
 <head>
     <title>Dashboard - Surveillance Incendie</title>
-    <style>
-        body {
-            background: #1a1a2e;
-            font-family: Arial;
-            color: white;
-            text-align: center;
-            padding: 20px;
-        }
-        .card {
-            background: #0f0f1a;
-            padding: 20px;
-            border-radius: 10px;
-            display: inline-block;
-            width: 150px;
-            margin: 10px;
-        }
-        .value {
-            font-size: 30px;
-            font-weight: bold;
-        }
-        .normal { background: green; padding: 10px; border-radius: 10px; }
-        .danger { background: red; padding: 10px; border-radius: 10px; }
-        .attention { background: orange; padding: 10px; border-radius: 10px; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 8px;
-            border-bottom: 1px solid #333;
-        }
-        .phone-popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .phone-popup-content {
-            background: #0f0f1a;
-            padding: 30px;
-            border-radius: 15px;
-            width: 350px;
-            text-align: center;
-        }
-        .phone-popup input {
-            width: 90%;
-            padding: 12px;
-            margin: 15px 0;
-            background: #1e1e2e;
-            color: white;
-            border: 1px solid #333;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        .phone-popup button {
-            background: #ff6b35;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .test-btn {
-            position: fixed;
-            top: 60px;
-            right: 10px;
-            background: #27ae60;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 999;
-            font-weight: bold;
-        }
-        .test-btn:hover {
-            background: #2ecc71;
-        }
-    </style>
-    <!-- Leaflet pour la carte -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Chart.js pour les graphiques -->
+    <meta charset="UTF-8">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+       (function(){
+          emailjs.init({
+            publicKey: "8INFBsb4SSanNVXR_",  // 🔴 REMPLACEZ par votre Public Key
+          });
+       })();
+    </script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; padding: 20px; }
+        .container { max-width: 1400px; margin: auto; }
+        h1 { color: #ff6b35; margin-bottom: 20px; }
+        .logout-btn { float: right; background: #ff4757; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .sensors { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: #0f0f1a; padding: 20px; border-radius: 10px; text-align: center; }
+        .card h3 { color: #ff6b35; margin-bottom: 10px; }
+        .card .value { font-size: 2em; font-weight: bold; }
+        .alerte { background: #ff4757; display: none; }
+        .charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+        .chart-container { background: #0f0f1a; padding: 20px; border-radius: 10px; }
+        canvas { max-height: 200px; }
+        #map { height: 300px; border-radius: 10px; margin-bottom: 20px; }
+        .historique { background: #0f0f1a; padding: 20px; border-radius: 10px; }
+        .historique table { width: 100%; border-collapse: collapse; }
+        .historique th, .historique td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+        button { background: #ff6b35; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { opacity: 0.8; }
+    </style>
 </head>
 <body>
+<div class="container">
+    <button class="logout-btn" onclick="deconnexion()">Déconnexion</button>
+    <h1>🚨 Système de Détection d'Incendie</h1>
+    
+    <div id="alerte-box" class="card alerte">
+        <h3>🔥 ALERTE INCENDIE DÉTECTÉE ! 🔥</h3>
+        <p>Intervention immédiate requise !</p>
+    </div>
+    
+    <div class="sensors" id="sensors">
+        <div class="card"><h3>🌡️ Température</h3><div class="value" id="temp">--</div><div>°C</div></div>
+        <div class="card"><h3>💧 Humidité</h3><div class="value" id="hum">--</div><div>%</div></div>
+        <div class="card"><h3>💨 Fumée</h3><div class="value" id="fumee">--</div><div>ppm</div></div>
+        <div class="card"><h3>🔥 Flamme</h3><div class="value" id="flamme">--</div></div>
+    </div>
+    
+    <div class="charts">
+        <div class="chart-container"><canvas id="tempChart"></canvas></div>
+        <div class="chart-container"><canvas id="humChart"></canvas></div>
+        <div class="chart-container"><canvas id="fumeeChart"></canvas></div>
+        <div class="chart-container"><canvas id="flammeChart"></canvas></div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div style="text-align: center; margin: 20px 0;">
+        <button onclick="changerNumeroWhatsApp()">📱 Changer numéro WhatsApp</button>
+        <button onclick="testerWhatsApp()">📱 Tester WhatsApp</button>
+    </div>
+    
+    <div class="historique">
+        <h3>📜 Historique des alertes</h3>
+        <table id="historique-table">
+            <thead><tr><th>Date</th><th>Température</th><th>Fumée</th><th>Flamme</th></tr></thead>
+            <tbody id="historique-body"></tbody>
+        </table>
+    </div>
+</div>
 
 <script>
-    // ============================================================
-    // VÉRIFICATION DE CONNEXION
-    // ============================================================
-    if (sessionStorage.getItem('connecte') != 'oui') {
-        window.location.href = 'login.html';
-    }
-    
-    // ============================================================
-    // AFFICHER L'EMAIL DE L'UTILISATEUR CONNECTÉ
-    // ============================================================
-    const userEmail = sessionStorage.getItem('userEmail');
-    if (userEmail) {
-        const emailDiv = document.createElement('div');
-        emailDiv.style.position = 'fixed';
-        emailDiv.style.bottom = '10px';
-        emailDiv.style.left = '10px';
-        emailDiv.style.background = '#0f0f1a';
-        emailDiv.style.padding = '5px 10px';
-        emailDiv.style.borderRadius = '5px';
-        emailDiv.style.fontSize = '11px';
-        emailDiv.style.color = '#888';
-        emailDiv.innerHTML = `👤 ${userEmail}`;
-        document.body.appendChild(emailDiv);
-    }
-    
-    // ============================================================
-    // GESTION DU NUMÉRO DE TÉLÉPHONE
-    // ============================================================
-    let numeroWhatsApp = localStorage.getItem('numeroWhatsApp');
-    
-    function sauvegarderNumero() {
-        const numero = document.getElementById('numeroPhone').value;
-        if (numero && numero.length >= 8) {
-            localStorage.setItem('numeroWhatsApp', numero);
-            document.getElementById('phonePopup').style.display = 'none';
-            alert('✅ Numéro enregistré ! Vous recevrez les alertes sur WhatsApp.');
-        } else {
-            alert('❌ Veuillez entrer un numéro valide (ex: 21695365915)');
-        }
-    }
-    
-    function modifierNumero() {
-        document.getElementById('phonePopup').style.display = 'flex';
-        document.getElementById('numeroPhone').value = numeroWhatsApp || '';
-    }
-    
-    // Afficher le popup si pas de numéro
-    if (!numeroWhatsApp) {
-        setTimeout(() => {
-            document.getElementById('phonePopup').style.display = 'flex';
-        }, 1000);
-    }
-    
-    // ============================================================
-    // FONCTION : ALERTE WHATSAPP
-    // ============================================================
-    function envoyerAlerteWhatsApp(temp, fumee, flamme) {
-        const numero = localStorage.getItem('numeroWhatsApp');
-        if (!numero) {
-            console.log("❌ Numéro WhatsApp non configuré");
-            return false;
-        }
-        
-        const date = new Date();
-        const heure = date.toLocaleString();
-        
-        const message = `🚨 ALERTE INCENDIE FORET 🚨\n\n` +
-                        `📊 DONNEES CAPTEURS :\n` +
-                        `🌡️ Température : ${temp}°C\n` +
-                        `💨 Fumée : ${fumee}/1023\n` +
-                        `🔥 Flamme : ${flamme == 1 ? 'DÉTECTÉE' : 'NON'}\n\n` +
-                        `⏰ Heure : ${heure}\n\n` +
-                        `⚠️ ACTION REQUISE IMMÉDIATE ⚠️`;
-        
-        const messageEncoded = encodeURIComponent(message);
-        const url = `https://wa.me/${numero}?text=${messageEncoded}`;
-        
-        // Ouvrir WhatsApp dans un nouvel onglet
-        window.open(url, '_blank');
-        console.log("📱 Alerte WhatsApp envoyée au:", numero);
-        return true;
-    }
-    
-    // ============================================================
-    // FONCTION : TEST WHATSAPP
-    // ============================================================
-    function testerWhatsApp() {
-        const numero = localStorage.getItem('numeroWhatsApp');
-        if (!numero) {
-            alert("❌ Aucun numéro enregistré. Clique sur 'Changer numéro' d'abord.");
-            return;
-        }
-        const message = "🧪 TEST : Ceci est un message de test du système de surveillance incendie.";
-        const url = `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
-        alert("📱 WhatsApp va s'ouvrir. Envoie le message pour tester.");
-    }
-</script>
-
-<!-- Popup pour entrer le numéro WhatsApp -->
-<div id="phonePopup" class="phone-popup" style="display: none;">
-    <div class="phone-popup-content">
-        <h2>📱 Configuration WhatsApp</h2>
-        <p>Entrez votre numéro de téléphone pour recevoir les alertes incendie :</p>
-        <input type="tel" id="numeroPhone" placeholder="Ex: 21695365915 (sans le +)">
-        <br>
-        <button onclick="sauvegarderNumero()">✅ Enregistrer</button>
-        <button onclick="document.getElementById('phonePopup').style.display='none'">⏰ Plus tard</button>
-        <p style="font-size: 11px; margin-top: 15px;">Format: Indicatif + numéro (ex: 216 pour Tunisie)</p>
-    </div>
-</div>
-
-<!-- Boutons -->
-<button onclick="sessionStorage.clear(); window.location.href='login.html'" style="position:fixed;top:10px;right:10px;background:red;color:white;border:none;padding:8px 15px;border-radius:5px;cursor:pointer;z-index:999;">
-    🔓 Logout
-</button>
-
-<button onclick="modifierNumero()" style="position:fixed;top:10px;left:10px;background:#333;color:white;border:none;padding:8px 15px;border-radius:5px;cursor:pointer;z-index:999;">
-    📱 Changer numéro
-</button>
-
-<button onclick="testerWhatsApp()" class="test-btn">
-    📱 TEST WHATSAPP
-</button>
-
-<h1>🔥 FOREST FIRE DETECTION</h1>
-<h3>Surveillance en temps réel</h3>
-
-<!-- Cartes des capteurs -->
-<div id="data">
-    <div class="card">
-        <h3>🌡️ Température</h3>
-        <div class="value" id="temp">--</div>
-        <div>°C</div>
-    </div>
-    <div class="card">
-        <h3>💧 Humidité</h3>
-        <div class="value" id="hum">--</div>
-        <div>%</div>
-    </div>
-    <div class="card">
-        <h3>💨 Fumée</h3>
-        <div class="value" id="smoke">--</div>
-        <div>/1023</div>
-    </div>
-    <div class="card">
-        <h3>🔥 Flamme</h3>
-        <div class="value" id="flame">--</div>
-    </div>
-</div>
-
-<!-- Alerte et Pompe -->
-<div id="alerte" class="normal" style="margin-top:30px;padding:15px;">🟢 NORMAL</div>
-<div id="pompe" style="margin-top:20px;font-size:20px;">💧 Pompe: OFF</div>
-
-<!-- Graphique d'évolution (4 courbes) -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
-    <h3>📈 Évolution des données (dernières 20 mesures)</h3>
-    <canvas id="graphique" style="width:100%; max-height:400px;"></canvas>
-</div>
-
-<!-- Historique des alertes -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
-    <h3>📋 Historique des alertes</h3>
-    <div id="historiqueListe">Chargement...</div>
-</div>
-
-<!-- Carte de localisation -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
-    <h3>🗺️ Localisation du capteur</h3>
-    <div id="carte" style="height: 300px; border-radius: 10px;"></div>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-    // ============================================================
-    // CONFIGURATION FIREBASE
-    // ============================================================
+    // Configuration Firebase
     const firebaseConfig = {
-        databaseURL: "https://detection-fda23-default-rtdb.europe-west1.firebasedatabase.app/"
+        apiKey: "AIzaSyAg_068Fe4dSjZKDvZ9UFA83v45--g9XrI",
+        authDomain: "detection-fda23.firebaseapp.com",
+        databaseURL: "https://detection-fda23-default-rtdb.firebaseio.com",
+        projectId: "detection-fda23",
+        storageBucket: "detection-fda23.firebasestorage.app",
+        messagingSenderId: "987985546215",
+        appId: "1:987985546215:web:31146fae602d6166294b42"
     };
     
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
+    const auth = firebase.auth();
     
-    // ============================================================
-    // VARIABLES GLOBALES
-    // ============================================================
-    let alarmeJouee = false;
-    let derniereAlerte = '';
-    let map = null;
+    // Vérifier authentification
+    auth.onAuthStateChanged(user => {
+        if (!user) window.location.href = 'index.html';
+    });
     
-    // Variables pour le graphique (4 courbes)
-    let chart = null;
-    let historiqueTemp = [];
-    let historiqueHumidite = [];
-    let historiqueFumee = [];
-    let historiqueFlamme = [];
-    let historiqueLabels = [];
+    // Graphiques
+    let tempChart, humChart, fumeeChart, flammeChart;
+    const maxDataPoints = 20;
+    let tempData = [], humData = [], fumeeData = [], flammeData = [], timeLabels = [];
     
-    // ============================================================
-    // FONCTION : ALERTE SONORE
-    // ============================================================
-    function jouerSonAlerte() {
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.value = 800;
-            gainNode.gain.value = 0.5;
-            
-            oscillator.start();
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 1);
-            oscillator.stop(audioContext.currentTime + 1);
-        } catch(e) {
-            console.log("Son non supporté");
-        }
-    }
-    
-    // ============================================================
-    // FONCTION : SAUVEGARDER ALERTE DANS HISTORIQUE
-    // ============================================================
-    function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-        const historiqueRef = database.ref('historique');
-        const newAlerteRef = historiqueRef.push();
+    function initCharts() {
+        const ctxTemp = document.getElementById('tempChart').getContext('2d');
+        tempChart = new Chart(ctxTemp, { type: 'line', data: { labels: timeLabels, datasets: [{ label: 'Température (°C)', data: tempData, borderColor: '#ff6b35', fill: false }] } });
         
-        newAlerteRef.set({
-            date: new Date().toISOString(),
-            niveau: niveau,
-            temperature: temperature,
-            humidite: humidite,
-            fumee: fumee,
-            flamme: flamme
-        });
+        const ctxHum = document.getElementById('humChart').getContext('2d');
+        humChart = new Chart(ctxHum, { type: 'line', data: { labels: timeLabels, datasets: [{ label: 'Humidité (%)', data: humData, borderColor: '#4ecdc4', fill: false }] } });
+        
+        const ctxFumee = document.getElementById('fumeeChart').getContext('2d');
+        fumeeChart = new Chart(ctxFumee, { type: 'line', data: { labels: timeLabels, datasets: [{ label: 'Fumée (ppm)', data: fumeeData, borderColor: '#95a5a6', fill: false }] } });
+        
+        const ctxFlamme = document.getElementById('flammeChart').getContext('2d');
+        flammeChart = new Chart(ctxFlamme, { type: 'line', data: { labels: timeLabels, datasets: [{ label: 'Flamme', data: flammeData, borderColor: '#e74c3c', fill: false }] } });
     }
     
-    // ============================================================
-    // FONCTION : AFFICHER HISTORIQUE DES ALERTES
-    // ============================================================
-    function afficherHistorique() {
-        database.ref('historique').orderByChild('date').limitToLast(10).on('value', (snapshot) => {
-            const historique = snapshot.val();
-            let html = '<table>';
-            html += '<tr><th>Date</th><th>Niveau</th><th>Temp</th><th>Humidité</th><th>Fumée</th></tr>';
-            
-            if (historique) {
-                Object.values(historique).reverse().forEach(alert => {
-                    const date = new Date(alert.date).toLocaleString();
-                    const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
-                    html += `<tr>
-                                <td>${date}</td>
-                                <td>${niveau}</td>
-                                <td>${alert.temperature}°C</td>
-                                <td>${alert.humidite || '--'}%</td>
-                                <td>${alert.fumee}</td>
-                             </tr>`;
-                });
-            } else {
-                html += '<tr><td colspan="5">Aucune alerte</td></tr>';
-            }
-            html += '</table>';
-            document.getElementById('historiqueListe').innerHTML = html;
-        });
-    }
-    
-    // ============================================================
-    // FONCTION : AFFICHER LA CARTE
-    // ============================================================
-    function afficherCarte(lat, lng) {
-        if (map === null) {
-            map = L.map('carte').setView([lat, lng], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
-        } else {
-            map.setView([lat, lng], 13);
+    function updateCharts(temp, hum, fumee, flamme) {
+        const now = new Date().toLocaleTimeString();
+        timeLabels.push(now);
+        tempData.push(temp);
+        humData.push(hum);
+        fumeeData.push(fumee);
+        flammeData.push(flamme ? 1 : 0);
+        
+        if (timeLabels.length > maxDataPoints) {
+            timeLabels.shift(); tempData.shift(); humData.shift(); fumeeData.shift(); flammeData.shift();
         }
         
-        map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) {
-                map.removeLayer(layer);
-            }
-        });
-        
-        L.marker([lat, lng]).addTo(map)
-            .bindPopup('📍 Capteur incendie')
-            .openPopup();
+        tempChart.update(); humChart.update(); fumeeChart.update(); flammeChart.update();
     }
     
-    // ============================================================
-    // FONCTIONS : GRAPHIQUE D'ÉVOLUTION
-    // ============================================================
-    function initialiserGraphique() {
-        const ctx = document.getElementById('graphique').getContext('2d');
-        
-        chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: '🌡️ Température (°C)',
-                        data: [],
-                        borderColor: '#ff5520',
-                        backgroundColor: 'rgba(255, 85, 32, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#ff5520',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '💧 Humidité (%)',
-                        data: [],
-                        borderColor: '#45BAF2',
-                        backgroundColor: 'rgba(69, 186, 242, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#45BAF2',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '💨 Fumée (/1023)',
-                        data: [],
-                        borderColor: '#c0c0cc',
-                        backgroundColor: 'rgba(192, 192, 204, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#c0c0cc',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '🔥 Flamme (0/1)',
-                        data: [],
-                        borderColor: '#FFCC10',
-                        backgroundColor: 'rgba(255, 204, 16, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#FFCC10',
-                        pointBorderColor: 'white'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                animation: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: { color: 'white', font: { size: 11 } }
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: '#0f0f1a',
-                        titleColor: 'white',
-                        bodyColor: '#ddd'
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: 'white', maxRotation: 45, minRotation: 45 },
-                        grid: { color: '#333' },
-                        title: { display: true, text: 'Heure', color: 'white' }
-                    },
-                    y: {
-                        ticks: { color: 'white' },
-                        grid: { color: '#333' },
-                        title: { display: true, text: 'Valeurs', color: 'white' }
-                    }
-                }
-            }
+    // Carte
+    let map;
+    function initMap() {
+        map = L.map('map').setView([36.8065, 10.1815], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        L.marker([36.8065, 10.1815]).addTo(map).bindPopup('📍 Forêt surveillée').openPopup();
+    }
+    
+    // WhatsApp
+    let numeroWhatsApp = localStorage.getItem('whatsapp_number') || '';
+    
+    function changerNumeroWhatsApp() {
+        const newNumber = prompt('Entrez le numéro WhatsApp (ex: 216XXXXXXXX):', numeroWhatsApp);
+        if (newNumber) { numeroWhatsApp = newNumber; localStorage.setItem('whatsapp_number', numeroWhatsApp); alert('Numéro enregistré !'); }
+    }
+    
+    function testerWhatsApp() {
+        if (!numeroWhatsApp) { alert('Veuillez d\'abord enregistrer un numéro'); return; }
+        const message = `🧪 TEST: Système de détection d'incendie fonctionne correctement.`;
+        window.open(`https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(message)}`, '_blank');
+    }
+    
+    function envoyerAlerteWhatsApp() {
+        if (!numeroWhatsApp) { alert('Veuillez enregistrer un numéro WhatsApp dans Paramètres'); return; }
+        database.ref('/').once('value').then(snapshot => {
+            const data = snapshot.val();
+            const message = `🚨 ALERTE INCENDIE !\n\n📍 Température: ${data.temperature}°C\n💨 Fumée: ${data.fumee} ppm\n🔥 Flamme: ${data.flamme ? 'DÉTECTÉE' : 'Non'}\n💧 Humidité: ${data.humidite}%\n🕐 ${new Date().toLocaleString()}\n⚠️ Intervention immédiate requise !`;
+            window.open(`https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(message)}`, '_blank');
         });
     }
     
-    function ajouterPointGraphique(temp, humidite, fumee, flamme) {
-        if (!chart) return;
-        
-        const maintenant = new Date();
-        const heure = maintenant.toLocaleTimeString();
-        
-        if (historiqueLabels.length >= 20) {
-            historiqueLabels.shift();
-            historiqueTemp.shift();
-            historiqueHumidite.shift();
-            historiqueFumee.shift();
-            historiqueFlamme.shift();
-        }
-        
-        historiqueLabels.push(heure);
-        historiqueTemp.push(temp);
-        historiqueHumidite.push(humidite);
-        historiqueFumee.push(fumee);
-        historiqueFlamme.push(flamme);
-        
-        chart.data.labels = [...historiqueLabels];
-        chart.data.datasets[0].data = [...historiqueTemp];
-        chart.data.datasets[1].data = [...historiqueHumidite];
-        chart.data.datasets[2].data = [...historiqueFumee];
-        chart.data.datasets[3].data = [...historiqueFlamme];
-        chart.update('none');
-    }
-    
-    // ============================================================
-    // LECTURE DES DONNÉES FIREBASE
-    // ============================================================
-    database.ref().on('value', (snapshot) => {
+    // 🔥 NOUVELLE FONCTION EMAIL 🔥
+    async function envoyerAlerteEmail() {
+        const snapshot = await database.ref('/').once('value');
         const data = snapshot.val();
         
-        if (data) {
-            const temp = data.temperature || '--';
-            const hum = data.humidite || '--';
-            const smoke = data.fumee || '--';
-            const flame = data.flamme || '--';
-            const pompe = data.pompe || 'off';
-            const alerte = data.alerte || 'normal';
-            
-            document.getElementById('temp').innerText = temp;
-            document.getElementById('hum').innerText = hum;
-            document.getElementById('smoke').innerText = smoke;
-            document.getElementById('flame').innerText = flame;
-            
-            if (temp !== '--' && smoke !== '--' && hum !== '--' && flame !== '--') {
-                const tempValue = parseFloat(temp);
-                const humValue = parseFloat(hum);
-                const smokeValue = parseFloat(smoke);
-                const flameValue = parseFloat(flame);
-                
-                if (!isNaN(tempValue) && !isNaN(humValue) && !isNaN(smokeValue) && !isNaN(flameValue)) {
-                    ajouterPointGraphique(tempValue, humValue, smokeValue, flameValue);
-                }
-            }
-            
-            const alerteDiv = document.getElementById('alerte');
-            if (alerte === 'danger') {
-                alerteDiv.innerHTML = '🔴 DANGER - RISQUE INCENDIE !';
-                alerteDiv.className = 'danger';
-                
-                if (!alarmeJouee) {
-                    jouerSonAlerte();
-                    alarmeJouee = true;
-                    
-                    // ENVOI WHATSAPP AUTOMATIQUE
-                    console.log("🔥 ENVOI ALERTE WHATSAPP...");
-                    envoyerAlerteWhatsApp(temp, smoke, flame);
-                }
-                
-                if (alerte !== derniereAlerte) {
-                    sauvegarderAlerte(alerte, temp, hum, smoke, flame);
-                    derniereAlerte = alerte;
-                }
-            } else if (alerte === 'attention') {
-                alerteDiv.innerHTML = '🟠 ATTENTION - SURVEILLANCE';
-                alerteDiv.className = 'attention';
-                alarmeJouee = false;
-            } else {
-                alerteDiv.innerHTML = '🟢 NORMAL';
-                alerteDiv.className = 'normal';
-                alarmeJouee = false;
-            }
-            
-            const pompeDiv = document.getElementById('pompe');
-            if (pompe === 'on') {
-                pompeDiv.innerHTML = '💧💧💧 POMPE ACTIVE - ARROSAGE ! 💧💧💧';
-                pompeDiv.style.color = 'red';
-            } else {
-                pompeDiv.innerHTML = '💧 Pompe: OFF';
-                pompeDiv.style.color = 'white';
-            }
+        const isFireDetected = (data.temperature > 60 || data.fumee > 700 || data.flamme === true);
+        if (!isFireDetected) return;
+        
+        const templateParams = {
+            date: new Date().toLocaleString(),
+            flamme: data.flamme ? "🔥 DÉTECTÉE" : "Aucune",
+            fumee: data.fumee,
+            temperature: data.temperature,
+            humidite: data.humidite,
+            localisation: data.localisation || "Forêt de Tunisie",
+            email: "syrynmb@gmail.com"  // 🔴 REMPLACEZ par l'email du forestier
+        };
+        
+        try {
+            const response = await emailjs.send(
+                'service_qgvgib4',  // 🔴 REMPLACEZ par votre Service ID
+                '1kdauzg',           // Votre Template ID
+                templateParams
+            );
+            console.log('✅ Email envoyé!', response);
+        } catch (error) {
+            console.error('❌ Erreur email:', error);
         }
-    });
+    }
     
-    // ============================================================
-    // LOCALISATION
-    // ============================================================
-    database.ref('localisation').on('value', (snapshot) => {
-        const loc = snapshot.val();
-        if (loc && loc.latitude && loc.longitude) {
-            afficherCarte(loc.latitude, loc.longitude);
+    function jouerSonAlerte() {
+        const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+        audio.play();
+    }
+    
+    function verifierAlerte(data) {
+        const isFireDetected = (data.temperature > 60 || data.fumee > 700 || data.flamme === true);
+        const alerteBox = document.getElementById('alerte-box');
+        
+        if (isFireDetected) {
+            alerteBox.style.display = 'block';
+            jouerSonAlerte();
+            envoyerAlerteWhatsApp();
+            envoyerAlerteEmail();  // 🔥 AJOUT DE L'EMAIL 🔥
+            
+            // Sauvegarder dans historique
+            database.ref('historique').push({
+                date: new Date().toISOString(),
+                temperature: data.temperature,
+                fumee: data.fumee,
+                flamme: data.flamme,
+                humidite: data.humidite
+            });
         } else {
-            afficherCarte(36.8, 10.18);
+            alerteBox.style.display = 'none';
+        }
+    }
+    
+    function afficherHistorique() {
+        database.ref('historique').limitToLast(10).on('value', snapshot => {
+            const tbody = document.getElementById('historique-body');
+            tbody.innerHTML = '';
+            const items = [];
+            snapshot.forEach(child => { items.push({ id: child.key, ...child.val() }); });
+            items.reverse().forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = new Date(item.date).toLocaleString();
+                row.insertCell(1).textContent = item.temperature + '°C';
+                row.insertCell(2).textContent = item.fumee + ' ppm';
+                row.insertCell(3).textContent = item.flamme ? '🔥 OUI' : '❌ NON';
+            });
+        });
+    }
+    
+    function deconnexion() { auth.signOut().then(() => window.location.href = 'index.html'); }
+    
+    // Écouter les données Firebase
+    database.ref('/').on('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+            document.getElementById('temp').innerHTML = data.temperature || '--';
+            document.getElementById('hum').innerHTML = data.humidite || '--';
+            document.getElementById('fumee').innerHTML = data.fumee || '--';
+            document.getElementById('flamme').innerHTML = data.flamme ? '🔥 DÉTECTÉE' : '✅ AUCUNE';
+            updateCharts(data.temperature || 0, data.humidite || 0, data.fumee || 0, data.flamme || false);
+            verifierAlerte(data);
         }
     });
     
-    // ============================================================
-    // INITIALISATION
-    // ============================================================
+    // Initialisation
+    initCharts();
+    initMap();
     afficherHistorique();
-    initialiserGraphique();
+    
+    // Récupérer numéro WhatsApp
+    if (numeroWhatsApp) console.log('WhatsApp configuré');
 </script>
-
 </body>
 </html>
