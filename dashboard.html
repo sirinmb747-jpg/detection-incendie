@@ -315,19 +315,22 @@
     // SAUVEGARDER ALERTE (CORRIGÉ - SANS BOUCLE)
     let alerteEnCours = false;
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-        if (alerteEnCours) return;
-        alerteEnCours = true;
-        
-        database.ref('historique').push({
-            date: new Date().toISOString(),
-            niveau: niveau,
-            zone: "Forêt de Tunisie (36.8065, 10.1815)",
-            temperature: temperature,
-            humidite: humidite,
-            fumee: fumee,
-            flamme: flamme
-        }).finally(() => { alerteEnCours = false; });
-    }
+    if (alerteEnCours) return;
+    alerteEnCours = true;
+    
+    database.ref('historique').push({
+        date: new Date().toISOString(),
+        niveau: niveau,
+        zone: "Forêt de Tunisie (36.8065, 10.1815)",
+        temperature: temperature,
+        humidite: humidite,
+        fumee: fumee,
+        flamme: flamme
+    });
+    
+    // Réinitialiser le verrou après un court délai
+    setTimeout(() => { alerteEnCours = false; }, 500);
+}
     
     // AFFICHER HISTORIQUE
     function afficherHistorique() {
