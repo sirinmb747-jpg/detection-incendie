@@ -87,11 +87,8 @@
             margin-top: 10px;
         }
     </style>
-    <!-- Leaflet pour la carte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Chart.js pour les graphiques -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- EmailJS SDK -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
@@ -108,35 +105,25 @@
     // CONFIGURATION EMAILJS
     // ============================================================
     emailjs.init({
-        publicKey: "8INFBsb4SSanNVXR_"  // VOTRE PUBLIC KEY
+        publicKey: "8INFBsb4SSanNVXR_"
     });
     
-    const SERVICE_ID = "service_qgvgib4";   // VOTRE SERVICE ID
-    const TEMPLATE_ID = "template_v7xwdjd";          // VOTRE TEMPLATE ID
-    const DESTINATION_EMAIL = "ademouni04@gmail.com";  // EMAIL DU FORESTIER
+    const SERVICE_ID = "service_qgvgib4";
+    const TEMPLATE_ID = "template_v7xwdjd";
+    const DESTINATION_EMAIL = "ademouni04@gmail.com";
     
-    // ============================================================
-    // AFFICHER L'EMAIL DE L'UTILISATEUR CONNECTÉ
-    // ============================================================
+    // Afficher l'email utilisateur
     const userEmail = sessionStorage.getItem('userEmail');
     if (userEmail) {
         const emailDiv = document.createElement('div');
-        emailDiv.style.position = 'fixed';
-        emailDiv.style.bottom = '10px';
-        emailDiv.style.left = '10px';
-        emailDiv.style.background = '#0f0f1a';
-        emailDiv.style.padding = '5px 10px';
-        emailDiv.style.borderRadius = '5px';
-        emailDiv.style.fontSize = '11px';
-        emailDiv.style.color = '#888';
+        emailDiv.style.cssText = 'position:fixed;bottom:10px;left:10px;background:#0f0f1a;padding:5px 10px;border-radius:5px;font-size:11px;color:#888';
         emailDiv.innerHTML = `👤 ${userEmail}`;
         document.body.appendChild(emailDiv);
     }
     
     // ============================================================
-    // SIMULATION PHOTO INCENDIE
+    // IMAGES DE SIMULATION
     // ============================================================
-    // Images de simulation (vous pouvez changer les URLs)
     const imagesSimulation = [
         "https://images.unsplash.com/photo-1584646098378-0874589d76b1?w=500&h=300&fit=crop",
         "https://images.unsplash.com/photo-1567177662159-3e0b6b8b7a6c?w=500&h=300&fit=crop",
@@ -146,21 +133,17 @@
     function simulerPhotoIncendie() {
         const randomImage = imagesSimulation[Math.floor(Math.random() * imagesSimulation.length)];
         
-        // Sauvegarder dans Firebase
         database.ref('derniereImage').set({
             url: randomImage,
             timestamp: new Date().toISOString(),
             simulatee: true
         });
         
-        // Afficher l'image
         document.getElementById('imageIncendie').src = randomImage;
         document.getElementById('imageIncendie').style.display = 'block';
         document.getElementById('pasImage').style.display = 'none';
         
         alert("📸 Photo simulée ! L'image a été enregistrée dans Firebase.");
-        
-        // Envoyer email avec l'image
         envoyerEmailAvecImage(randomImage);
     }
     
@@ -180,27 +163,22 @@
         };
         
         try {
-            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
             alert("✅ Email avec photo envoyé !");
-            console.log('Email avec photo envoyé:', response);
         } catch (error) {
-            alert('❌ Erreur envoi email: ' + error.text);
-            console.error('Erreur:', error);
+            alert('❌ Erreur: ' + error.text);
         }
     }
     
     // ============================================================
-    // FONCTION : ENVOI EMAIL D'ALERTE
+    // ENVOI EMAIL ALERTE (CORRIGÉ - SANS BOUCLE)
     // ============================================================
     let dernierEnvoiEmail = 0;
-    const DELAI_MIN_EMAIL = 60000; // 1 minute minimum entre deux emails
+    const DELAI_MIN_EMAIL = 60000;
     
     async function envoyerEmailAlerte(temp, fumee, flamme, humidite) {
         const maintenant = Date.now();
-        if (maintenant - dernierEnvoiEmail < DELAI_MIN_EMAIL) {
-            console.log("⏳ Attendez 1 minute avant d'envoyer un autre email");
-            return false;
-        }
+        if (maintenant - dernierEnvoiEmail < DELAI_MIN_EMAIL) return false;
         
         const templateParams = {
             date: new Date().toLocaleString(),
@@ -208,25 +186,20 @@
             fumee: fumee,
             temperature: temp,
             humidite: humidite,
-            localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
+            localisation: "Forêt de Tunisie",
             imageUrl: "",
             email: DESTINATION_EMAIL
         };
         
         try {
-            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
-            console.log('✅ Email d\'alerte envoyé!', response);
+            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
             dernierEnvoiEmail = maintenant;
             return true;
         } catch (error) {
-            console.error('❌ Erreur envoi email:', error);
             return false;
         }
     }
     
-    // ============================================================
-    // FONCTION : TEST EMAIL
-    // ============================================================
     async function testerEmail() {
         const templateParams = {
             date: new Date().toLocaleString(),
@@ -234,98 +207,70 @@
             fumee: "TEST",
             temperature: "TEST",
             humidite: "TEST",
-            localisation: "Test du système",
+            localisation: "Test",
             imageUrl: "",
             email: DESTINATION_EMAIL
         };
         
         try {
-            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
-            alert('✅ Email de test envoyé avec succès !');
-            console.log('Email test envoyé:', response);
+            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            alert('✅ Email de test envoyé !');
         } catch (error) {
-            alert('❌ Erreur lors de l\'envoi du test: ' + error.text);
-            console.error('Erreur:', error);
+            alert('❌ Erreur: ' + error.text);
         }
     }
     
-    // ============================================================
-    // AFFICHAGE DES BOUTONS
-    // ============================================================
+    // Afficher email config
     const emailConfigDiv = document.createElement('div');
     emailConfigDiv.className = 'email-config';
     emailConfigDiv.innerHTML = `📧 Alertes email vers: ${DESTINATION_EMAIL}`;
     document.body.appendChild(emailConfigDiv);
 </script>
 
-<!-- Boutons -->
-<button onclick="sessionStorage.clear(); window.location.href='login.html'" class="logout-btn">
-    🔓 Logout
-</button>
-
-<button onclick="testerEmail()" class="test-email-btn">
-    📧 TEST EMAIL
-</button>
-
-<button onclick="simulerPhotoIncendie()" class="simuler-photo-btn">
-    📸 SIMULER PHOTO INCENDIE
-</button>
+<!-- BOUTONS FIXES -->
+<button onclick="sessionStorage.clear(); window.location.href='login.html'" class="logout-btn">🔓 Logout</button>
+<button onclick="testerEmail()" class="test-email-btn">📧 TEST EMAIL</button>
+<button onclick="simulerPhotoIncendie()" class="simuler-photo-btn">📸 SIMULER PHOTO INCENDIE</button>
 
 <h1>🔥 FOREST FIRE DETECTION</h1>
 <h3>Surveillance en temps réel</h3>
 
-<!-- Cartes des capteurs -->
+<!-- CAPTEURS -->
 <div id="data">
-    <div class="card">
-        <h3>🌡️ Température</h3>
-        <div class="value" id="temp">--</div>
-        <div>°C</div>
-    </div>
-    <div class="card">
-        <h3>💧 Humidité</h3>
-        <div class="value" id="hum">--</div>
-        <div>%</div>
-    </div>
-    <div class="card">
-        <h3>💨 Fumée</h3>
-        <div class="value" id="smoke">--</div>
-        <div>/1023</div>
-    </div>
-    <div class="card">
-        <h3>🔥 Flamme</h3>
-        <div class="value" id="flame">--</div>
-    </div>
+    <div class="card"><h3>🌡️ Température</h3><div class="value" id="temp">--</div><div>°C</div></div>
+    <div class="card"><h3>💧 Humidité</h3><div class="value" id="hum">--</div><div>%</div></div>
+    <div class="card"><h3>💨 Fumée</h3><div class="value" id="smoke">--</div><div>/1023</div></div>
+    <div class="card"><h3>🔥 Flamme</h3><div class="value" id="flame">--</div></div>
 </div>
 
-<!-- Alerte et Pompe -->
 <div id="alerte" class="normal" style="margin-top:30px;padding:15px;">🟢 NORMAL</div>
 <div id="pompe" style="margin-top:20px;font-size:20px;">💧 Pompe: OFF</div>
 
-<!-- Image capturée (SIMULATION) -->
+<!-- IMAGE SIMULÉE -->
 <div class="image-container">
     <h3>📸 Dernière image capturée</h3>
     <div id="imageContainer">
-        <img id="imageIncendie" src="" style="max-width: 100%; max-height: 300px; border-radius: 10px; display: none;">
-        <p id="pasImage">🖼️ Aucune image (sera capturée automatiquement en cas d'incendie)</p>
+        <img id="imageIncendie" src="" style="max-width:100%;max-height:300px;border-radius:10px;display:none;">
+        <p id="pasImage">🖼️ Aucune image (capturée automatiquement en cas d'incendie)</p>
     </div>
 </div>
 
-<!-- Graphique d'évolution (4 courbes) -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
-    <h3>📈 Évolution des données (dernières 20 mesures)</h3>
-    <canvas id="graphique" style="width:100%; max-height:400px;"></canvas>
+<!-- GRAPHIQUE -->
+<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
+    <h3>📈 Évolution des données</h3>
+    <canvas id="graphique" style="width:100%;max-height:400px;"></canvas>
 </div>
 
-<!-- Historique des alertes -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
+<!-- HISTORIQUE -->
+<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
     <h3>📋 Historique des alertes</h3>
     <div id="historiqueListe">Chargement...</div>
 </div>
 
-<!-- Carte de localisation -->
-<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
+<!-- CARTE -->
+<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
     <h3>🗺️ Localisation du capteur</h3>
-    <div id="carte" style="height: 300px; border-radius: 10px;"></div>
+    <div id="carte" style="height:300px;border-radius:10px;"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -333,267 +278,117 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    // ============================================================
     // CONFIGURATION FIREBASE
-    // ============================================================
     const firebaseConfig = {
         databaseURL: "https://detection-fda23-default-rtdb.europe-west1.firebasedatabase.app/"
     };
-    
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     
-    // ============================================================
-    // VARIABLES GLOBALES
-    // ============================================================
+    // VARIABLES
     let alarmeJouee = false;
     let derniereAlerte = '';
     let map = null;
     
-    // Variables pour le graphique (4 courbes)
+    // GRAPHIQUE
     let chart = null;
-    let historiqueTemp = [];
-    let historiqueHumidite = [];
-    let historiqueFumee = [];
-    let historiqueFlamme = [];
-    let historiqueLabels = [];
+    let historiqueTemp = [], historiqueHumidite = [], historiqueFumee = [], historiqueFlamme = [], historiqueLabels = [];
     
-    // ============================================================
-    // ÉCOUTER LA DERNIÈRE IMAGE
-    // ============================================================
+    // Écouter les images
     database.ref('derniereImage').on('value', (snapshot) => {
         const imageData = snapshot.val();
         if (imageData && imageData.url) {
             document.getElementById('imageIncendie').src = imageData.url;
             document.getElementById('imageIncendie').style.display = 'block';
             document.getElementById('pasImage').style.display = 'none';
-            console.log("📸 Image chargée:", imageData.url);
         }
     });
     
-    // ============================================================
-    // FONCTION : ALERTE SONORE
-    // ============================================================
+    // ALERTE SONORE (corrigée)
     function jouerSonAlerte() {
         try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.value = 800;
-            gainNode.gain.value = 0.5;
-            
-            oscillator.start();
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 1);
-            oscillator.stop(audioContext.currentTime + 1);
-        } catch(e) {
-            console.log("Son non supporté");
-        }
+            const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+            audio.play().catch(e => console.log("Son nécessite une interaction utilisateur"));
+        } catch(e) { console.log("Erreur son"); }
     }
     
-    // ============================================================
-    // FONCTION : SAUVEGARDER ALERTE DANS HISTORIQUE
-    // ============================================================
+    // SAUVEGARDER ALERTE (CORRIGÉ - SANS BOUCLE)
+    let alerteEnCours = false;
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-        const historiqueRef = database.ref('historique');
-        const newAlerteRef = historiqueRef.push();
+        if (alerteEnCours) return;
+        alerteEnCours = true;
         
-        newAlerteRef.set({
+        database.ref('historique').push({
             date: new Date().toISOString(),
             niveau: niveau,
             zone: "Forêt de Tunisie (36.8065, 10.1815)",
-            localisation: "Forêt de Tunisie",
             temperature: temperature,
             humidite: humidite,
             fumee: fumee,
             flamme: flamme
-        });
+        }).finally(() => { alerteEnCours = false; });
     }
     
-    // ============================================================
-    // FONCTION : AFFICHER HISTORIQUE DES ALERTES
-    // ============================================================
+    // AFFICHER HISTORIQUE
     function afficherHistorique() {
         database.ref('historique').orderByChild('date').limitToLast(20).on('value', (snapshot) => {
             const historique = snapshot.val();
-            let html = '<table style="width:100%; border-collapse: collapse;">';
-            html += '<thead><tr style="background:#ff6b35;"><th>📅 Date et heure</th><th>📍 Zone / Localisation</th><th>🔴 Niveau</th></tr></thead><tbody>';
+            let html = '<table style="width:100%;"><thead><tr style="background:#ff6b35;"><th>📅 Date</th><th>📍 Zone</th><th>🔴 Niveau</th></tr></thead><tbody>';
             
             if (historique) {
-                const alerts = Object.values(historique).reverse();
-                alerts.forEach(alert => {
-                    const date = new Date(alert.date).toLocaleString();
-                    const zone = alert.zone || alert.localisation || "Forêt de Tunisie";
-                    const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
-                    html += `<tr>
-                                 <td>${date}</td>
-                                 <td>📍 ${zone}</td>
-                                 <td>${niveau}</td>
-                             </tr>`;
+                Object.values(historique).reverse().forEach(alert => {
+                    html += `<tr><td>${new Date(alert.date).toLocaleString()}</td><td>📍 ${alert.zone}</td><td>${alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION'}</td></tr>`;
                 });
             } else {
-                html += '<tr><td colspan="3">📭 Aucune alerte pour le moment</td></tr>';
+                html += '<tr><td colspan="3">📭 Aucune alerte</td></tr>';
             }
             html += '</tbody></table>';
             document.getElementById('historiqueListe').innerHTML = html;
         });
     }
     
-    // ============================================================
-    // FONCTION : AFFICHER LA CARTE
-    // ============================================================
+    // CARTE
     function afficherCarte(lat, lng) {
         if (map === null) {
             map = L.map('carte').setView([lat, lng], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
         } else {
             map.setView([lat, lng], 13);
         }
-        
-        map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) {
-                map.removeLayer(layer);
-            }
-        });
-        
-        L.marker([lat, lng]).addTo(map)
-            .bindPopup('📍 Capteur incendie')
-            .openPopup();
+        L.marker([lat, lng]).addTo(map).bindPopup('📍 Capteur incendie').openPopup();
     }
     
-    // ============================================================
-    // FONCTIONS : GRAPHIQUE D'ÉVOLUTION
-    // ============================================================
+    // GRAPHIQUE
     function initialiserGraphique() {
         const ctx = document.getElementById('graphique').getContext('2d');
-        
         chart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: '🌡️ Température (°C)',
-                        data: [],
-                        borderColor: '#ff5520',
-                        backgroundColor: 'rgba(255, 85, 32, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#ff5520',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '💧 Humidité (%)',
-                        data: [],
-                        borderColor: '#45BAF2',
-                        backgroundColor: 'rgba(69, 186, 242, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#45BAF2',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '💨 Fumée (/1023)',
-                        data: [],
-                        borderColor: '#c0c0cc',
-                        backgroundColor: 'rgba(192, 192, 204, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#c0c0cc',
-                        pointBorderColor: 'white'
-                    },
-                    {
-                        label: '🔥 Flamme (0/1)',
-                        data: [],
-                        borderColor: '#FFCC10',
-                        backgroundColor: 'rgba(255, 204, 16, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#FFCC10',
-                        pointBorderColor: 'white'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                animation: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: { color: 'white', font: { size: 11 } }
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: '#0f0f1a',
-                        titleColor: 'white',
-                        bodyColor: '#ddd'
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: 'white', maxRotation: 45, minRotation: 45 },
-                        grid: { color: '#333' },
-                        title: { display: true, text: 'Heure', color: 'white' }
-                    },
-                    y: {
-                        ticks: { color: 'white' },
-                        grid: { color: '#333' },
-                        title: { display: true, text: 'Valeurs', color: 'white' }
-                    }
-                }
-            }
+            data: { labels: [], datasets: [
+                { label: '🌡️ Température (°C)', data: [], borderColor: '#ff5520', backgroundColor: 'rgba(255,85,32,0.1)', fill: true, tension: 0.3 },
+                { label: '💧 Humidité (%)', data: [], borderColor: '#45BAF2', backgroundColor: 'rgba(69,186,242,0.1)', fill: true, tension: 0.3 },
+                { label: '💨 Fumée (/1023)', data: [], borderColor: '#c0c0cc', backgroundColor: 'rgba(192,192,204,0.1)', fill: true, tension: 0.3 }
+            ] },
+            options: { responsive: true, maintainAspectRatio: true, animation: false, plugins: { legend: { position: 'top', labels: { color: 'white' } } }, scales: { x: { ticks: { color: 'white' }, grid: { color: '#333' } }, y: { ticks: { color: 'white' }, grid: { color: '#333' } } } }
         });
     }
     
-    function ajouterPointGraphique(temp, humidite, fumee, flamme) {
+    function ajouterPointGraphique(temp, humidite, fumee) {
         if (!chart) return;
-        
-        const maintenant = new Date();
-        const heure = maintenant.toLocaleTimeString();
-        
+        const heure = new Date().toLocaleTimeString();
         if (historiqueLabels.length >= 20) {
-            historiqueLabels.shift();
-            historiqueTemp.shift();
-            historiqueHumidite.shift();
-            historiqueFumee.shift();
-            historiqueFlamme.shift();
+            historiqueLabels.shift(); historiqueTemp.shift(); historiqueHumidite.shift(); historiqueFumee.shift();
         }
-        
-        historiqueLabels.push(heure);
-        historiqueTemp.push(temp);
-        historiqueHumidite.push(humidite);
-        historiqueFumee.push(fumee);
-        historiqueFlamme.push(flamme);
-        
+        historiqueLabels.push(heure); historiqueTemp.push(temp); historiqueHumidite.push(humidite); historiqueFumee.push(fumee);
         chart.data.labels = [...historiqueLabels];
         chart.data.datasets[0].data = [...historiqueTemp];
         chart.data.datasets[1].data = [...historiqueHumidite];
         chart.data.datasets[2].data = [...historiqueFumee];
-        chart.data.datasets[3].data = [...historiqueFlamme];
         chart.update('none');
     }
     
-    // ============================================================
-    // LECTURE DES DONNÉES FIREBASE
-    // ============================================================
+    // LECTURE DONNÉES FIREBASE
     database.ref().on('value', (snapshot) => {
         const data = snapshot.val();
-        
         if (data) {
             const temp = data.temperature || '--';
             const hum = data.humidite || '--';
@@ -607,30 +402,20 @@
             document.getElementById('smoke').innerText = smoke;
             document.getElementById('flame').innerText = flame;
             
-            if (temp !== '--' && smoke !== '--' && hum !== '--' && flame !== '--') {
-                const tempValue = parseFloat(temp);
-                const humValue = parseFloat(hum);
-                const smokeValue = parseFloat(smoke);
-                const flameValue = parseFloat(flame);
-                
-                if (!isNaN(tempValue) && !isNaN(humValue) && !isNaN(smokeValue) && !isNaN(flameValue)) {
-                    ajouterPointGraphique(tempValue, humValue, smokeValue, flameValue);
-                }
+            const tempVal = parseFloat(temp), humVal = parseFloat(hum), smokeVal = parseFloat(smoke);
+            if (!isNaN(tempVal) && !isNaN(humVal) && !isNaN(smokeVal)) {
+                ajouterPointGraphique(tempVal, humVal, smokeVal);
             }
             
             const alerteDiv = document.getElementById('alerte');
             if (alerte === 'danger') {
                 alerteDiv.innerHTML = '🔴 DANGER - RISQUE INCENDIE !';
                 alerteDiv.className = 'danger';
-                
                 if (!alarmeJouee) {
                     jouerSonAlerte();
                     alarmeJouee = true;
-                    
-                    console.log("📧 ENVOI ALERTE EMAIL...");
                     envoyerEmailAlerte(temp, smoke, flame, hum);
                 }
-                
                 if (alerte !== derniereAlerte) {
                     sauvegarderAlerte(alerte, temp, hum, smoke, flame);
                     derniereAlerte = alerte;
@@ -645,32 +430,18 @@
                 alarmeJouee = false;
             }
             
-            const pompeDiv = document.getElementById('pompe');
-            if (pompe === 'on') {
-                pompeDiv.innerHTML = '💧💧💧 POMPE ACTIVE - ARROSAGE ! 💧💧💧';
-                pompeDiv.style.color = 'red';
-            } else {
-                pompeDiv.innerHTML = '💧 Pompe: OFF';
-                pompeDiv.style.color = 'white';
-            }
+            document.getElementById('pompe').innerHTML = pompe === 'on' ? '💧💧💧 POMPE ACTIVE !' : '💧 Pompe: OFF';
+            document.getElementById('pompe').style.color = pompe === 'on' ? 'red' : 'white';
         }
     });
     
-    // ============================================================
     // LOCALISATION
-    // ============================================================
     database.ref('localisation').on('value', (snapshot) => {
         const loc = snapshot.val();
-        if (loc && loc.latitude && loc.longitude) {
-            afficherCarte(loc.latitude, loc.longitude);
-        } else {
-            afficherCarte(36.8, 10.18);
-        }
+        afficherCarte(loc?.latitude || 36.8, loc?.longitude || 10.18);
     });
     
-    // ============================================================
     // INITIALISATION
-    // ============================================================
     afficherHistorique();
     initialiserGraphique();
 </script>
