@@ -295,48 +295,51 @@
     // FONCTION : SAUVEGARDER ALERTE DANS HISTORIQUE
     // ============================================================
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-        const historiqueRef = database.ref('historique');
-        const newAlerteRef = historiqueRef.push();
-        
-        newAlerteRef.set({
-            date: new Date().toISOString(),
-            niveau: niveau,
-            temperature: temperature,
-            humidite: humidite,
-            fumee: fumee,
-            flamme: flamme
-        });
-    }
+    const historiqueRef = database.ref('historique');
+    const newAlerteRef = historiqueRef.push();
+    
+    newAlerteRef.set({
+        date: new Date().toISOString(),
+        niveau: niveau,
+        zone: "Forêt de Tunisie (36.8065, 10.1815)",  // ← AJOUTEZ CETTE LIGNE
+        localisation: "Forêt de Tunisie",
+        temperature: temperature,
+        humidite: humidite,
+        fumee: fumee,
+        flamme: flamme
+    });
+}
     
     // ============================================================
     // FONCTION : AFFICHER HISTORIQUE DES ALERTES
     // ============================================================
     function afficherHistorique() {
-        database.ref('historique').orderByChild('date').limitToLast(10).on('value', (snapshot) => {
-            const historique = snapshot.val();
-            let html = '</table>';
-            html += '<tr><th>Date</th><th>Niveau</th><th>Temp</th><th>Humidité</th><th>Fumée</th></tr>';
-            
-            if (historique) {
-                Object.values(historique).reverse().forEach(alert => {
-                    const date = new Date(alert.date).toLocaleString();
-                    const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
-                    html += `<tr>
-                                <td>${date}</td>
-                                <td>${niveau}</td>
-                                <td>${alert.temperature}°C</td>
-                                <td>${alert.humidite || '--'}%</td>
-                                <td>${alert.fumee}</td>
-                             </tr>`;
-                });
-            } else {
-                html += '<tr><td colspan="5">Aucune alerte</td></tr>';
-            }
-            html += '</table>';
-            document.getElementById('historiqueListe').innerHTML = html;
-        });
-    }
-    
+    database.ref('historique').orderByChild('date').limitToLast(20).on('value', (snapshot) => {
+        const historique = snapshot.val();
+        let html = '<table style="width:100%; border-collapse: collapse;">';
+        html += '<thead><tr style="background:#ff6b35;"><th>📅 Date et heure</th><th>📍 Zone / Localisation</th><th>🔴 Niveau</th></tr></thead><tbody>';
+        
+        if (historique) {
+            // Inverser l'ordre pour avoir le plus récent en premier
+            const alerts = Object.values(historique).reverse();
+            alerts.forEach(alert => {
+                const date = new Date(alert.date).toLocaleString();
+                // Récupérer la zone (soit du template, soit valeur par défaut)
+                const zone = alert.zone || alert.localisation || "Forêt de Tunisie";
+                const niveau = alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION';
+                html += `<tr>
+                            <td>${date}</td>
+                            <td>📍 ${zone}</td>
+                            <td>${niveau}</td>
+                         </tr>`;
+            });
+        } else {
+            html += '<tr><td colspan="3">📭 Aucune alerte pour le moment</td></tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('historiqueListe').innerHTML = html;
+    });
+}
     // ============================================================
     // FONCTION : AFFICHER LA CARTE
     // ============================================================
