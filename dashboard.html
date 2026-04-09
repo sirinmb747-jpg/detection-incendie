@@ -33,65 +33,47 @@
             padding: 8px;
             border-bottom: 1px solid #333;
         }
-        .phone-popup {
+        .email-config {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .phone-popup-content {
-            background: #0f0f1a;
-            padding: 30px;
-            border-radius: 15px;
-            width: 350px;
-            text-align: center;
-        }
-        .phone-popup input {
-            width: 90%;
-            padding: 12px;
-            margin: 15px 0;
-            background: #1e1e2e;
-            color: white;
-            border: 1px solid #333;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        .phone-popup button {
-            background: #ff6b35;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .test-btn {
-            position: fixed;
-            top: 60px;
+            bottom: 10px;
             right: 10px;
-            background: #27ae60;
+            background: #0f0f1a;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            color: #888;
+        }
+        button {
+            background: #ff6b35;
             color: white;
             border: none;
             padding: 8px 15px;
             border-radius: 5px;
             cursor: pointer;
-            z-index: 999;
-            font-weight: bold;
+            margin: 5px;
         }
-        .test-btn:hover {
-            background: #2ecc71;
+        button:hover { opacity: 0.8; }
+        .logout-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: red;
+            z-index: 999;
+        }
+        .test-email-btn {
+            position: fixed;
+            top: 60px;
+            right: 10px;
+            background: #27ae60;
+            z-index: 999;
         }
     </style>
     <!-- Leaflet pour la carte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Chart.js pour les graphiques -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -102,6 +84,17 @@
     if (sessionStorage.getItem('connecte') != 'oui') {
         window.location.href = 'login.html';
     }
+    
+    // ============================================================
+    // CONFIGURATION EMAILJS
+    // ============================================================
+    emailjs.init({
+        publicKey: "8INFBsb4SSanNVXR_"  // VOTRE PUBLIC KEY
+    });
+    
+    const SERVICE_ID = "service_qgvgib4";   // VOTRE SERVICE ID
+    const TEMPLATE_ID = "1kdauzg";          // VOTRE TEMPLATE ID
+    const DESTINATION_EMAIL = "syrynmb@gmail.com";  // EMAIL DU FORESTIER
     
     // ============================================================
     // AFFICHER L'EMAIL DE L'UTILISATEUR CONNECTÉ
@@ -122,103 +115,79 @@
     }
     
     // ============================================================
-    // GESTION DU NUMÉRO DE TÉLÉPHONE
+    // FONCTION : ENVOI EMAIL D'ALERTE
     // ============================================================
-    let numeroWhatsApp = localStorage.getItem('numeroWhatsApp');
+    let dernierEnvoiEmail = 0;
+    const DELAI_MIN_EMAIL = 60000; // 1 minute minimum entre deux emails
     
-    function sauvegarderNumero() {
-        const numero = document.getElementById('numeroPhone').value;
-        if (numero && numero.length >= 8) {
-            localStorage.setItem('numeroWhatsApp', numero);
-            document.getElementById('phonePopup').style.display = 'none';
-            alert('✅ Numéro enregistré ! Vous recevrez les alertes sur WhatsApp.');
-        } else {
-            alert('❌ Veuillez entrer un numéro valide (ex: 21695365915)');
-        }
-    }
-    
-    function modifierNumero() {
-        document.getElementById('phonePopup').style.display = 'flex';
-        document.getElementById('numeroPhone').value = numeroWhatsApp || '';
-    }
-    
-    // Afficher le popup si pas de numéro
-    if (!numeroWhatsApp) {
-        setTimeout(() => {
-            document.getElementById('phonePopup').style.display = 'flex';
-        }, 1000);
-    }
-    
-    // ============================================================
-    // FONCTION : ALERTE WHATSAPP
-    // ============================================================
-    function envoyerAlerteWhatsApp(temp, fumee, flamme) {
-        const numero = localStorage.getItem('numeroWhatsApp');
-        if (!numero) {
-            console.log("❌ Numéro WhatsApp non configuré");
+    async function envoyerEmailAlerte(temp, fumee, flamme, humidite) {
+        const maintenant = Date.now();
+        if (maintenant - dernierEnvoiEmail < DELAI_MIN_EMAIL) {
+            console.log("⏳ Attendez 1 minute avant d'envoyer un autre email");
             return false;
         }
         
-        const date = new Date();
-        const heure = date.toLocaleString();
+        const templateParams = {
+            date: new Date().toLocaleString(),
+            flamme: flamme == 1 ? "🔥 DÉTECTÉE" : "Aucune",
+            fumee: fumee,
+            temperature: temp,
+            humidite: humidite,
+            localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
+            email: DESTINATION_EMAIL
+        };
         
-        const message = `🚨 ALERTE INCENDIE FORET 🚨\n\n` +
-                        `📊 DONNEES CAPTEURS :\n` +
-                        `🌡️ Température : ${temp}°C\n` +
-                        `💨 Fumée : ${fumee}/1023\n` +
-                        `🔥 Flamme : ${flamme == 1 ? 'DÉTECTÉE' : 'NON'}\n\n` +
-                        `⏰ Heure : ${heure}\n\n` +
-                        `⚠️ ACTION REQUISE IMMÉDIATE ⚠️`;
-        
-        const messageEncoded = encodeURIComponent(message);
-        const url = `https://wa.me/${numero}?text=${messageEncoded}`;
-        
-        // Ouvrir WhatsApp dans un nouvel onglet
-        window.open(url, '_blank');
-        console.log("📱 Alerte WhatsApp envoyée au:", numero);
-        return true;
+        try {
+            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            console.log('✅ Email d\'alerte envoyé!', response);
+            dernierEnvoiEmail = maintenant;
+            return true;
+        } catch (error) {
+            console.error('❌ Erreur envoi email:', error);
+            return false;
+        }
     }
     
     // ============================================================
-    // FONCTION : TEST WHATSAPP
+    // FONCTION : TEST EMAIL
     // ============================================================
-    function testerWhatsApp() {
-        const numero = localStorage.getItem('numeroWhatsApp');
-        if (!numero) {
-            alert("❌ Aucun numéro enregistré. Clique sur 'Changer numéro' d'abord.");
-            return;
+    async function testerEmail() {
+        const templateParams = {
+            date: new Date().toLocaleString(),
+            flamme: "TEST",
+            fumee: "TEST",
+            temperature: "TEST",
+            humidite: "TEST",
+            localisation: "Test du système",
+            email: DESTINATION_EMAIL
+        };
+        
+        try {
+            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            alert('✅ Email de test envoyé avec succès !');
+            console.log('Email test envoyé:', response);
+        } catch (error) {
+            alert('❌ Erreur lors de l\'envoi du test: ' + error.text);
+            console.error('Erreur:', error);
         }
-        const message = "🧪 TEST : Ceci est un message de test du système de surveillance incendie.";
-        const url = `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
-        alert("📱 WhatsApp va s'ouvrir. Envoie le message pour tester.");
     }
+    
+    // ============================================================
+    // AFFICHAGE DES BOUTONS
+    // ============================================================
+    const emailConfigDiv = document.createElement('div');
+    emailConfigDiv.className = 'email-config';
+    emailConfigDiv.innerHTML = `📧 Alertes email vers: ${DESTINATION_EMAIL}`;
+    document.body.appendChild(emailConfigDiv);
 </script>
 
-<!-- Popup pour entrer le numéro WhatsApp -->
-<div id="phonePopup" class="phone-popup" style="display: none;">
-    <div class="phone-popup-content">
-        <h2>📱 Configuration WhatsApp</h2>
-        <p>Entrez votre numéro de téléphone pour recevoir les alertes incendie :</p>
-        <input type="tel" id="numeroPhone" placeholder="Ex: 21695365915 (sans le +)">
-        <br>
-        <button onclick="sauvegarderNumero()">✅ Enregistrer</button>
-        <button onclick="document.getElementById('phonePopup').style.display='none'">⏰ Plus tard</button>
-        <p style="font-size: 11px; margin-top: 15px;">Format: Indicatif + numéro (ex: 216 pour Tunisie)</p>
-    </div>
-</div>
-
 <!-- Boutons -->
-<button onclick="sessionStorage.clear(); window.location.href='login.html'" style="position:fixed;top:10px;right:10px;background:red;color:white;border:none;padding:8px 15px;border-radius:5px;cursor:pointer;z-index:999;">
+<button onclick="sessionStorage.clear(); window.location.href='login.html'" class="logout-btn">
     🔓 Logout
 </button>
 
-<button onclick="modifierNumero()" style="position:fixed;top:10px;left:10px;background:#333;color:white;border:none;padding:8px 15px;border-radius:5px;cursor:pointer;z-index:999;">
-    📱 Changer numéro
-</button>
-
-<button onclick="testerWhatsApp()" class="test-btn">
-    📱 TEST WHATSAPP
+<button onclick="testerEmail()" class="test-email-btn">
+    📧 TEST EMAIL
 </button>
 
 <h1>🔥 FOREST FIRE DETECTION</h1>
@@ -345,7 +314,7 @@
     function afficherHistorique() {
         database.ref('historique').orderByChild('date').limitToLast(10).on('value', (snapshot) => {
             const historique = snapshot.val();
-            let html = '<table>';
+            let html = '</table>';
             html += '<tr><th>Date</th><th>Niveau</th><th>Temp</th><th>Humidité</th><th>Fumée</th></tr>';
             
             if (historique) {
@@ -553,9 +522,9 @@
                     jouerSonAlerte();
                     alarmeJouee = true;
                     
-                    // ENVOI WHATSAPP AUTOMATIQUE
-                    console.log("🔥 ENVOI ALERTE WHATSAPP...");
-                    envoyerAlerteWhatsApp(temp, smoke, flame);
+                    // 🔥 ENVOI EMAIL AUTOMATIQUE (remplace WhatsApp)
+                    console.log("📧 ENVOI ALERTE EMAIL...");
+                    envoyerEmailAlerte(temp, smoke, flame, hum);
                 }
                 
                 if (alerte !== derniereAlerte) {
