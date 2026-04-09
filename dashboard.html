@@ -171,7 +171,7 @@
     }
     
     // ============================================================
-    // ENVOI EMAIL ALERTE (CORRIGÉ - SANS BOUCLE)
+    // ENVOI EMAIL ALERTE
     // ============================================================
     let dernierEnvoiEmail = 0;
     const DELAI_MIN_EMAIL = 60000;
@@ -304,7 +304,7 @@
         }
     });
     
-    // ALERTE SONORE (corrigée)
+    // ALERTE SONORE
     function jouerSonAlerte() {
         try {
             const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
@@ -312,25 +312,24 @@
         } catch(e) { console.log("Erreur son"); }
     }
     
-    // SAUVEGARDER ALERTE (CORRIGÉ - SANS BOUCLE)
+    // SAUVEGARDER ALERTE
     let alerteEnCours = false;
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-    if (alerteEnCours) return;
-    alerteEnCours = true;
-    
-    database.ref('historique').push({
-        date: new Date().toISOString(),
-        niveau: niveau,
-        zone: "Forêt de Tunisie (36.8065, 10.1815)",
-        temperature: temperature,
-        humidite: humidite,
-        fumee: fumee,
-        flamme: flamme
-    });
-    
-    // Réinitialiser le verrou après un court délai
-    setTimeout(() => { alerteEnCours = false; }, 500);
-}
+        if (alerteEnCours) return;
+        alerteEnCours = true;
+        
+        database.ref('historique').push({
+            date: new Date().toISOString(),
+            niveau: niveau,
+            zone: "Forêt de Tunisie (36.8065, 10.1815)",
+            temperature: temperature,
+            humidite: humidite,
+            fumee: fumee,
+            flamme: flamme
+        });
+        
+        setTimeout(() => { alerteEnCours = false; }, 500);
+    }
     
     // AFFICHER HISTORIQUE
     function afficherHistorique() {
