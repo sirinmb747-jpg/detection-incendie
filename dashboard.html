@@ -67,29 +67,37 @@
             background: #27ae60;
             z-index: 999;
         }
-        .simuler-photo-btn {
-            position: fixed;
-            top: 110px;
-            right: 10px;
-            background: #e74c3c;
-            z-index: 999;
-        }
-        .image-container {
-            margin-top: 20px;
+        .feature-card {
+            flex: 1;
+            min-width: 200px;
             background: #0f0f1a;
             padding: 15px;
             border-radius: 10px;
+            margin: 10px;
         }
-        .image-container img {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 10px;
-            margin-top: 10px;
+        .flex-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .prediction-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .temps-reponse-value {
+            font-size: 24px;
+            font-weight: bold;
         }
     </style>
+    <!-- Leaflet pour la carte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Chart.js pour les graphiques -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- EmailJS SDK -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <!-- html2pdf pour export PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -122,63 +130,17 @@
     }
     
     // ============================================================
-    // IMAGES DE SIMULATION
-    // ============================================================
-    const imagesSimulation = [
-        "https://images.unsplash.com/photo-1584646098378-0874589d76b1?w=500&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1567177662159-3e0b6b8b7a6c?w=500&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1584646098378-0874589d76b1?w=500&h=300&fit=crop"
-    ];
-    
-    function simulerPhotoIncendie() {
-        const randomImage = imagesSimulation[Math.floor(Math.random() * imagesSimulation.length)];
-        
-        database.ref('derniereImage').set({
-            url: randomImage,
-            timestamp: new Date().toISOString(),
-            simulatee: true
-        });
-        
-        document.getElementById('imageIncendie').src = randomImage;
-        document.getElementById('imageIncendie').style.display = 'block';
-        document.getElementById('pasImage').style.display = 'none';
-        
-        alert("📸 Photo simulée ! L'image a été enregistrée dans Firebase.");
-        envoyerEmailAvecImage(randomImage);
-    }
-    
-    async function envoyerEmailAvecImage(imageUrl) {
-        const snapshot = await database.ref('/').once('value');
-        const data = snapshot.val();
-        
-        const templateParams = {
-            date: new Date().toLocaleString(),
-            flamme: data.flamme == 1 ? "🔥 DÉTECTÉE" : "Simulation",
-            fumee: data.fumee || "Simulation",
-            temperature: data.temperature || "Simulation",
-            humidite: data.humidite || "Simulation",
-            localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
-            imageUrl: imageUrl,
-            email: DESTINATION_EMAIL
-        };
-        
-        try {
-            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
-            alert("✅ Email avec photo envoyé !");
-        } catch (error) {
-            alert('❌ Erreur: ' + error.text);
-        }
-    }
-    
-    // ============================================================
-    // ENVOI EMAIL ALERTE
+    // FONCTION : ENVOI EMAIL D'ALERTE
     // ============================================================
     let dernierEnvoiEmail = 0;
     const DELAI_MIN_EMAIL = 60000;
     
     async function envoyerEmailAlerte(temp, fumee, flamme, humidite) {
         const maintenant = Date.now();
-        if (maintenant - dernierEnvoiEmail < DELAI_MIN_EMAIL) return false;
+        if (maintenant - dernierEnvoiEmail < DELAI_MIN_EMAIL) {
+            console.log("⏳ Attendez 1 minute avant d'envoyer un autre email");
+            return false;
+        }
         
         const templateParams = {
             date: new Date().toLocaleString(),
@@ -186,20 +148,24 @@
             fumee: fumee,
             temperature: temp,
             humidite: humidite,
-            localisation: "Forêt de Tunisie",
-            imageUrl: "",
+            localisation: "Forêt de Tunisie - Lat: 36.8065, Long: 10.1815",
             email: DESTINATION_EMAIL
         };
         
         try {
-            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            console.log('✅ Email d\'alerte envoyé!', response);
             dernierEnvoiEmail = maintenant;
             return true;
         } catch (error) {
+            console.error('❌ Erreur envoi email:', error);
             return false;
         }
     }
     
+    // ============================================================
+    // FONCTION : TEST EMAIL
+    // ============================================================
     async function testerEmail() {
         const templateParams = {
             date: new Date().toLocaleString(),
@@ -207,70 +173,256 @@
             fumee: "TEST",
             temperature: "TEST",
             humidite: "TEST",
-            localisation: "Test",
-            imageUrl: "",
+            localisation: "Test du système",
             email: DESTINATION_EMAIL
         };
         
         try {
-            await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
-            alert('✅ Email de test envoyé !');
+            const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+            alert('✅ Email de test envoyé avec succès !');
+            console.log('Email test envoyé:', response);
         } catch (error) {
-            alert('❌ Erreur: ' + error.text);
+            alert('❌ Erreur lors de l\'envoi du test: ' + error.text);
+            console.error('Erreur:', error);
         }
     }
     
-    // Afficher email config
+    // ============================================================
+    // IDEE 5 : PREDICTION DU RISQUE + TENDANCE
+    // ============================================================
+    let historiqueTemperatures = [];
+    
+    function analyserTendanceEtRisque(temp) {
+        if (isNaN(temp)) return;
+        
+        historiqueTemperatures.push(temp);
+        if (historiqueTemperatures.length > 5) historiqueTemperatures.shift();
+        
+        if (historiqueTemperatures.length < 3) {
+            document.getElementById('prediction').innerHTML = "📊 Collecte...";
+            document.getElementById('tendance').innerHTML = "Besoin de plus de données";
+            return;
+        }
+        
+        const ancienneTemp = historiqueTemperatures[0];
+        const nouvelleTemp = historiqueTemperatures[historiqueTemperatures.length - 1];
+        const hausse = nouvelleTemp - ancienneTemp;
+        
+        let risque = 0;
+        let messageRisque = "";
+        let couleur = "#27ae60";
+        
+        if (hausse > 2) {
+            risque = Math.min(95, Math.round((hausse / 5) * 100));
+            messageRisque = `📈 Hausse rapide (+${hausse.toFixed(1)}°C)`;
+            couleur = "#e74c3c";
+        } else if (hausse > 0.5) {
+            risque = Math.min(70, Math.round((hausse / 3) * 100));
+            messageRisque = `📈 Hausse modérée (+${hausse.toFixed(1)}°C)`;
+            couleur = "#e67e22";
+        } else if (hausse > 0) {
+            risque = Math.min(40, Math.round((hausse / 2) * 100));
+            messageRisque = `📈 Hausse lente (+${hausse.toFixed(1)}°C)`;
+            couleur = "#f1c40f";
+        } else {
+            risque = Math.max(5, Math.round(15 - Math.abs(hausse) * 5));
+            messageRisque = `📉 Température stable ou en baisse`;
+            couleur = "#27ae60";
+        }
+        
+        document.getElementById('prediction').innerHTML = `<span style="color:${couleur}">⚠️ ${risque}%</span>`;
+        document.getElementById('tendance').innerHTML = `${messageRisque} • Risque dans 30 min`;
+    }
+    
+    // ============================================================
+    // IDEE 6 : EXPORT PDF
+    // ============================================================
+    function exporterPDF() {
+        const element = document.getElementById('historiqueListe');
+        const opt = {
+            margin: [10, 10, 10, 10],
+            filename: `rapport_incendie_${new Date().toLocaleDateString()}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, letterRendering: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        const originalHTML = element.innerHTML;
+        const titre = `<div style="text-align:center; margin-bottom:20px;">
+                        <h1 style="color:#ff6b35;">🔥 Système de Détection d'Incendie</h1>
+                        <p>Rapport généré le ${new Date().toLocaleString()}</p>
+                        <hr>
+                       </div>`;
+        element.innerHTML = titre + originalHTML;
+        
+        html2pdf().set(opt).from(element).save().then(() => {
+            element.innerHTML = originalHTML;
+        });
+        
+        alert("📄 Génération du rapport PDF...");
+    }
+    
+    // ============================================================
+    // IDEE 7 : NOTIFICATION PUSH DESKTOP
+    // ============================================================
+    function demanderPermissionNotification() {
+        if ("Notification" in window) {
+            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        }
+    }
+    
+    function envoyerNotification(alerte, temp, fumee) {
+        if ("Notification" in window && Notification.permission === "granted") {
+            const options = {
+                body: `🔥 ${alerte} | Temp: ${temp}°C | Fumée: ${fumée}`,
+                icon: "https://cdn-icons-png.flaticon.com/512/182/182866.png",
+                badge: "https://cdn-icons-png.flaticon.com/512/182/182866.png",
+                vibrate: [200, 100, 200],
+                requireInteraction: true
+            };
+            const notification = new Notification("🚨 ALERTE INCENDIE DÉTECTÉE !", options);
+            setTimeout(() => notification.close(), 10000);
+        }
+    }
+    
+    function testerNotification() {
+        if ("Notification" in window) {
+            if (Notification.permission === "granted") {
+                new Notification("🔔 Test de notification", {
+                    body: "Les alertes fonctionnent correctement !",
+                    icon: "https://cdn-icons-png.flaticon.com/512/182/182866.png"
+                });
+            } else {
+                Notification.requestPermission().then(perm => {
+                    if (perm === "granted") {
+                        alert("✅ Notifications activées !");
+                        testerNotification();
+                    } else {
+                        alert("❌ Veuillez autoriser les notifications dans votre navigateur");
+                    }
+                });
+            }
+        } else {
+            alert("❌ Votre navigateur ne supporte pas les notifications");
+        }
+    }
+    
+    // Demander la permission au chargement
+    demanderPermissionNotification();
+    
+    // ============================================================
+    // IDEE 8 : TEMPS DE REPONSE
+    // ============================================================
+    let debutIncendie = null;
+    let dernierEtatAlerte = 'normal';
+    
+    function enregistrerDebutIncendie() {
+        if (debutIncendie === null) {
+            debutIncendie = Date.now();
+            document.getElementById('tempsReponse').innerHTML = "⏱️ En cours...";
+        }
+    }
+    
+    function enregistrerFinIncendie() {
+        if (debutIncendie !== null) {
+            const dureeSecondes = Math.round((Date.now() - debutIncendie) / 1000);
+            const dureeMinutes = Math.floor(dureeSecondes / 60);
+            const resteSecondes = dureeSecondes % 60;
+            
+            let dureeTexte = "";
+            if (dureeMinutes > 0) {
+                dureeTexte = `${dureeMinutes}min ${resteSecondes}s`;
+            } else {
+                dureeTexte = `${dureeSecondes}s`;
+            }
+            
+            document.getElementById('tempsReponse').innerHTML = `⏱️ ${dureeTexte}`;
+            debutIncendie = null;
+        }
+    }
+    
+    // ============================================================
+    // AFFICHAGE DES BOUTONS
+    // ============================================================
     const emailConfigDiv = document.createElement('div');
     emailConfigDiv.className = 'email-config';
     emailConfigDiv.innerHTML = `📧 Alertes email vers: ${DESTINATION_EMAIL}`;
     document.body.appendChild(emailConfigDiv);
 </script>
 
-<!-- BOUTONS FIXES -->
+<!-- Boutons -->
 <button onclick="sessionStorage.clear(); window.location.href='login.html'" class="logout-btn">🔓 Logout</button>
 <button onclick="testerEmail()" class="test-email-btn">📧 TEST EMAIL</button>
-<button onclick="simulerPhotoIncendie()" class="simuler-photo-btn">📸 SIMULER PHOTO INCENDIE</button>
 
 <h1>🔥 FOREST FIRE DETECTION</h1>
 <h3>Surveillance en temps réel</h3>
 
-<!-- CAPTEURS -->
+<!-- Cartes des capteurs -->
 <div id="data">
-    <div class="card"><h3>🌡️ Température</h3><div class="value" id="temp">--</div><div>°C</div></div>
-    <div class="card"><h3>💧 Humidité</h3><div class="value" id="hum">--</div><div>%</div></div>
-    <div class="card"><h3>💨 Fumée</h3><div class="value" id="smoke">--</div><div>/1023</div></div>
-    <div class="card"><h3>🔥 Flamme</h3><div class="value" id="flame">--</div></div>
-</div>
-
-<div id="alerte" class="normal" style="margin-top:30px;padding:15px;">🟢 NORMAL</div>
-<div id="pompe" style="margin-top:20px;font-size:20px;">💧 Pompe: OFF</div>
-
-<!-- IMAGE SIMULÉE -->
-<div class="image-container">
-    <h3>📸 Dernière image capturée</h3>
-    <div id="imageContainer">
-        <img id="imageIncendie" src="" style="max-width:100%;max-height:300px;border-radius:10px;display:none;">
-        <p id="pasImage">🖼️ Aucune image (capturée automatiquement en cas d'incendie)</p>
+    <div class="card">
+        <h3>🌡️ Température</h3>
+        <div class="value" id="temp">--</div>
+        <div>°C</div>
+    </div>
+    <div class="card">
+        <h3>💧 Humidité</h3>
+        <div class="value" id="hum">--</div>
+        <div>%</div>
+    </div>
+    <div class="card">
+        <h3>💨 Fumée</h3>
+        <div class="value" id="smoke">--</div>
+        <div>/1023</div>
+    </div>
+    <div class="card">
+        <h3>🔥 Flamme</h3>
+        <div class="value" id="flame">--</div>
     </div>
 </div>
 
-<!-- GRAPHIQUE -->
-<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
-    <h3>📈 Évolution des données</h3>
-    <canvas id="graphique" style="width:100%;max-height:400px;"></canvas>
+<!-- Alerte et Pompe -->
+<div id="alerte" class="normal" style="margin-top:30px;padding:15px;">🟢 NORMAL</div>
+<div id="pompe" style="margin-top:20px;font-size:20px;">💧 Pompe: OFF</div>
+
+<!-- NOUVELLES FONCTIONNALITÉS -->
+<div class="flex-container">
+    <div class="feature-card">
+        <h3>📊 Prédiction du risque</h3>
+        <div id="prediction" class="prediction-value" style="font-size:24px;">--</div>
+        <div id="tendance" style="font-size: 12px; color: #888;">Analyse des données...</div>
+    </div>
+    
+    <div class="feature-card">
+        <h3>⏱️ Dernier temps de réponse</h3>
+        <div id="tempsReponse" class="temps-reponse-value" style="font-size:24px;">--</div>
+        <div style="font-size: 12px; color: #888;">Détection → Extinction</div>
+    </div>
+    
+    <div class="feature-card">
+        <h3>📄 Actions</h3>
+        <button onclick="exporterPDF()" style="background: #3498db; width: 100%; margin: 5px 0;">📄 Exporter PDF</button>
+        <button onclick="testerNotification()" style="background: #9b59b6; width: 100%; margin: 5px 0;">🔔 Tester notification</button>
+    </div>
 </div>
 
-<!-- HISTORIQUE -->
-<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
+<!-- Graphique d'évolution -->
+<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
+    <h3>📈 Évolution des données (dernières 20 mesures)</h3>
+    <canvas id="graphique" style="width:100%; max-height:400px;"></canvas>
+</div>
+
+<!-- Historique des alertes -->
+<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
     <h3>📋 Historique des alertes</h3>
     <div id="historiqueListe">Chargement...</div>
 </div>
 
-<!-- CARTE -->
-<div style="margin-top:30px;background:#0f0f1a;padding:15px;border-radius:10px;">
+<!-- Carte de localisation -->
+<div style="margin-top: 30px; background: #0f0f1a; padding: 15px; border-radius: 10px;">
     <h3>🗺️ Localisation du capteur</h3>
-    <div id="carte" style="height:300px;border-radius:10px;"></div>
+    <div id="carte" style="height: 300px; border-radius: 10px;"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -282,67 +434,63 @@
     const firebaseConfig = {
         databaseURL: "https://detection-fda23-default-rtdb.europe-west1.firebasedatabase.app/"
     };
+    
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     
-    // VARIABLES
+    // VARIABLES GLOBALES
     let alarmeJouee = false;
     let derniereAlerte = '';
     let map = null;
     
-    // GRAPHIQUE
+    // Graphique
     let chart = null;
     let historiqueTemp = [], historiqueHumidite = [], historiqueFumee = [], historiqueFlamme = [], historiqueLabels = [];
-    
-    // Écouter les images
-    database.ref('derniereImage').on('value', (snapshot) => {
-        const imageData = snapshot.val();
-        if (imageData && imageData.url) {
-            document.getElementById('imageIncendie').src = imageData.url;
-            document.getElementById('imageIncendie').style.display = 'block';
-            document.getElementById('pasImage').style.display = 'none';
-        }
-    });
     
     // ALERTE SONORE
     function jouerSonAlerte() {
         try {
             const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
-            audio.play().catch(e => console.log("Son nécessite une interaction utilisateur"));
+            audio.play().catch(e => console.log("Son nécessite interaction"));
         } catch(e) { console.log("Erreur son"); }
     }
     
     // SAUVEGARDER ALERTE
-    let alerteEnCours = false;
     function sauvegarderAlerte(niveau, temperature, humidite, fumee, flamme) {
-        if (alerteEnCours) return;
-        alerteEnCours = true;
+        const historiqueRef = database.ref('historique');
+        const newAlerteRef = historiqueRef.push();
         
-        database.ref('historique').push({
+        newAlerteRef.set({
             date: new Date().toISOString(),
             niveau: niveau,
-            zone: "Forêt de Tunisie (36.8065, 10.1815)",
+            localisation: "Forêt de Tunisie (36.8065, 10.1815)",
             temperature: temperature,
             humidite: humidite,
             fumee: fumee,
             flamme: flamme
         });
-        
-        setTimeout(() => { alerteEnCours = false; }, 500);
     }
     
     // AFFICHER HISTORIQUE
     function afficherHistorique() {
         database.ref('historique').orderByChild('date').limitToLast(20).on('value', (snapshot) => {
             const historique = snapshot.val();
-            let html = '<table style="width:100%;"><thead><tr style="background:#ff6b35;"><th>📅 Date</th><th>📍 Zone</th><th>🔴 Niveau</th></tr></thead><tbody>';
+            let html = '<table style="width:100%;">';
+            html += '<thead><tr style="background:#ff6b35;"><th>📅 Date et heure</th><th>📍 Localisation</th><th>🔴 Niveau</th></tr></thead><tbody>';
             
             if (historique) {
                 Object.values(historique).reverse().forEach(alert => {
-                    html += `<tr><td>${new Date(alert.date).toLocaleString()}</td><td>📍 ${alert.zone}</td><td>${alert.niveau === 'danger' ? '🔴 DANGER' : '🟠 ATTENTION'}</td></tr>`;
+                    const date = new Date(alert.date).toLocaleString();
+                    const localisation = alert.localisation || "Forêt de Tunisie";
+                    let niveau = '';
+                    if (alert.niveau === 'danger') niveau = '🔴 DANGER';
+                    else if (alert.niveau === 'attention') niveau = '🟠 ATTENTION';
+                    else niveau = '🟢 NORMAL';
+                    
+                    html += `<tr><td>${date}</td><td>📍 ${localisation}</td><td>${niveau}</td></tr>`;
                 });
             } else {
-                html += '<tr><td colspan="3">📭 Aucune alerte</td></tr>';
+                html += '<tr><td colspan="3">📭 Aucune alerte pour le moment</td></tr>';
             }
             html += '</tbody></table>';
             document.getElementById('historiqueListe').innerHTML = html;
@@ -353,11 +501,22 @@
     function afficherCarte(lat, lng) {
         if (map === null) {
             map = L.map('carte').setView([lat, lng], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
         } else {
             map.setView([lat, lng], 13);
         }
-        L.marker([lat, lng]).addTo(map).bindPopup('📍 Capteur incendie').openPopup();
+        
+        map.eachLayer((layer) => {
+            if (layer instanceof L.Marker) {
+                map.removeLayer(layer);
+            }
+        });
+        
+        L.marker([lat, lng]).addTo(map)
+            .bindPopup('📍 Capteur incendie')
+            .openPopup();
     }
     
     // GRAPHIQUE
@@ -368,29 +527,37 @@
             data: { labels: [], datasets: [
                 { label: '🌡️ Température (°C)', data: [], borderColor: '#ff5520', backgroundColor: 'rgba(255,85,32,0.1)', fill: true, tension: 0.3 },
                 { label: '💧 Humidité (%)', data: [], borderColor: '#45BAF2', backgroundColor: 'rgba(69,186,242,0.1)', fill: true, tension: 0.3 },
-                { label: '💨 Fumée (/1023)', data: [], borderColor: '#c0c0cc', backgroundColor: 'rgba(192,192,204,0.1)', fill: true, tension: 0.3 }
+                { label: '💨 Fumée (/1023)', data: [], borderColor: '#c0c0cc', backgroundColor: 'rgba(192,192,204,0.1)', fill: true, tension: 0.3 },
+                { label: '🔥 Flamme (0/1)', data: [], borderColor: '#FFCC10', backgroundColor: 'rgba(255,204,16,0.1)', fill: true, tension: 0.3 }
             ] },
-            options: { responsive: true, maintainAspectRatio: true, animation: false, plugins: { legend: { position: 'top', labels: { color: 'white' } } }, scales: { x: { ticks: { color: 'white' }, grid: { color: '#333' } }, y: { ticks: { color: 'white' }, grid: { color: '#333' } } } }
+            options: { responsive: true, maintainAspectRatio: true, animation: false, plugins: { legend: { position: 'top', labels: { color: 'white', font: { size: 11 } } } }, scales: { x: { ticks: { color: 'white', maxRotation: 45 }, grid: { color: '#333' } }, y: { ticks: { color: 'white' }, grid: { color: '#333' } } } }
         });
     }
     
-    function ajouterPointGraphique(temp, humidite, fumee) {
+    function ajouterPointGraphique(temp, humidite, fumee, flamme) {
         if (!chart) return;
         const heure = new Date().toLocaleTimeString();
         if (historiqueLabels.length >= 20) {
-            historiqueLabels.shift(); historiqueTemp.shift(); historiqueHumidite.shift(); historiqueFumee.shift();
+            historiqueLabels.shift(); historiqueTemp.shift(); historiqueHumidite.shift(); historiqueFumee.shift(); historiqueFlamme.shift();
         }
-        historiqueLabels.push(heure); historiqueTemp.push(temp); historiqueHumidite.push(humidite); historiqueFumee.push(fumee);
+        historiqueLabels.push(heure);
+        historiqueTemp.push(temp);
+        historiqueHumidite.push(humidite);
+        historiqueFumee.push(fumee);
+        historiqueFlamme.push(flamme);
+        
         chart.data.labels = [...historiqueLabels];
         chart.data.datasets[0].data = [...historiqueTemp];
         chart.data.datasets[1].data = [...historiqueHumidite];
         chart.data.datasets[2].data = [...historiqueFumee];
+        chart.data.datasets[3].data = [...historiqueFlamme];
         chart.update('none');
     }
     
-    // LECTURE DONNÉES FIREBASE
+    // LECTURE DONNÉES FIREBASE (avec intégration des nouvelles fonctionnalités)
     database.ref().on('value', (snapshot) => {
         const data = snapshot.val();
+        
         if (data) {
             const temp = data.temperature || '--';
             const hum = data.humidite || '--';
@@ -404,20 +571,41 @@
             document.getElementById('smoke').innerText = smoke;
             document.getElementById('flame').innerText = flame;
             
-            const tempVal = parseFloat(temp), humVal = parseFloat(hum), smokeVal = parseFloat(smoke);
-            if (!isNaN(tempVal) && !isNaN(humVal) && !isNaN(smokeVal)) {
-                ajouterPointGraphique(tempVal, humVal, smokeVal);
+            const tempVal = parseFloat(temp);
+            const humVal = parseFloat(hum);
+            const smokeVal = parseFloat(smoke);
+            const flameVal = parseFloat(flame);
+            
+            if (!isNaN(tempVal) && !isNaN(humVal) && !isNaN(smokeVal) && !isNaN(flameVal)) {
+                ajouterPointGraphique(tempVal, humVal, smokeVal, flameVal);
+                // PRÉDICTION : analyser la tendance température
+                analyserTendanceEtRisque(tempVal);
             }
             
             const alerteDiv = document.getElementById('alerte');
-            if (alerte === 'danger') {
+            const estDanger = (alerte === 'danger');
+            
+            if (estDanger) {
                 alerteDiv.innerHTML = '🔴 DANGER - RISQUE INCENDIE !';
                 alerteDiv.className = 'danger';
+                
+                // TEMPS DE RÉPONSE : début de l'incendie
+                if (dernierEtatAlerte !== 'danger') {
+                    enregistrerDebutIncendie();
+                }
+                
+                // NOTIFICATION PUSH
+                if (!alarmeJouee) {
+                    envoyerNotification("DANGER", temp, smoke);
+                }
+                
                 if (!alarmeJouee) {
                     jouerSonAlerte();
                     alarmeJouee = true;
+                    console.log("📧 ENVOI ALERTE EMAIL...");
                     envoyerEmailAlerte(temp, smoke, flame, hum);
                 }
+                
                 if (alerte !== derniereAlerte) {
                     sauvegarderAlerte(alerte, temp, hum, smoke, flame);
                     derniereAlerte = alerte;
@@ -426,21 +614,42 @@
                 alerteDiv.innerHTML = '🟠 ATTENTION - SURVEILLANCE';
                 alerteDiv.className = 'attention';
                 alarmeJouee = false;
+                // TEMPS DE RÉPONSE : fin de l'incendie (si on était en danger)
+                if (dernierEtatAlerte === 'danger') {
+                    enregistrerFinIncendie();
+                }
             } else {
                 alerteDiv.innerHTML = '🟢 NORMAL';
                 alerteDiv.className = 'normal';
                 alarmeJouee = false;
+                // TEMPS DE RÉPONSE : fin de l'incendie (si on était en danger)
+                if (dernierEtatAlerte === 'danger') {
+                    enregistrerFinIncendie();
+                }
             }
             
-            document.getElementById('pompe').innerHTML = pompe === 'on' ? '💧💧💧 POMPE ACTIVE !' : '💧 Pompe: OFF';
-            document.getElementById('pompe').style.color = pompe === 'on' ? 'red' : 'white';
+            // Mettre à jour l'état précédent
+            dernierEtatAlerte = alerte;
+            
+            const pompeDiv = document.getElementById('pompe');
+            if (pompe === 'on') {
+                pompeDiv.innerHTML = '💧💧💧 POMPE ACTIVE - ARROSAGE ! 💧💧💧';
+                pompeDiv.style.color = 'red';
+            } else {
+                pompeDiv.innerHTML = '💧 Pompe: OFF';
+                pompeDiv.style.color = 'white';
+            }
         }
     });
     
     // LOCALISATION
     database.ref('localisation').on('value', (snapshot) => {
         const loc = snapshot.val();
-        afficherCarte(loc?.latitude || 36.8, loc?.longitude || 10.18);
+        if (loc && loc.latitude && loc.longitude) {
+            afficherCarte(loc.latitude, loc.longitude);
+        } else {
+            afficherCarte(36.8, 10.18);
+        }
     });
     
     // INITIALISATION
